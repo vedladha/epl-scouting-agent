@@ -1,0 +1,15 @@
+# Virtualenv — 694MB, never commit
+venv/
+__pycache__/
+*.pyc
+
+# Local secrets. The deployed app reads these from Streamlit's secrets UI.
+.streamlit/secrets.toml
+.env
+
+# Generated at runtime from the CSV; committed copy is optional
+# data/epl_scout.db
+
+# Scratch
+downloaded_files/
+*.log

@@ -1,0 +1,11 @@
+# Data pipeline
+pandas>=2.0
+numpy>=1.24
+
+# Agent + UI
+anthropic>=1.0
+streamlit>=1.38
+
+# NOTE: soccerdata was removed — FBref is Cloudflare-blocked and the project
+# loads a static Kaggle CSV instead. scikit-learn and python-dotenv were
+# declared but never imported.
