@@ -4,7 +4,8 @@
 CREATE TABLE IF NOT EXISTS players (
     player_id       TEXT PRIMARY KEY,   -- fbref id or normalized name+dob hash
     name            TEXT NOT NULL,
-    current_club    TEXT NOT NULL,      -- must be in CURRENT_PL_CLUBS
+    club            TEXT NOT NULL,      -- club played for in the loaded season,
+                                        -- NOT necessarily where they are now
     position        TEXT,               -- e.g. 'DF', 'MF', 'FW', 'GK'
     detailed_position TEXT,             -- e.g. 'LB', 'CB', 'CM', 'ST'
     age             INTEGER,

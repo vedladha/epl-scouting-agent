@@ -125,8 +125,8 @@ def test_similarity_and_style_use_different_scores():
 
 @needs_db
 def test_an_impossible_filter_explains_itself_rather_than_returning_nothing():
-    res = find_players(style_weights={"npxg_p90": 1}, club="Leeds United")
-    assert "error" in res and "Coventry" in res["hint"]
+    res = find_players(style_weights={"npxg_p90": 1}, club="Coventry City")
+    assert "error" in res and "2024-25" in res["hint"]
 
 
 @needs_db

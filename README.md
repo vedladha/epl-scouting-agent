@@ -116,8 +116,8 @@ dressed as evidence, which is the exact failure this tool exists to avoid.
 Scraping FBref directly is blocked — it sits behind Cloudflare and 403s every
 attempt — so this uses a static Kaggle export instead.
 
-**Pipeline output:** 574 rows → 447 players across 16 clubs → 315 feature
-vectors (450-minute floor).
+**Pipeline output:** 574 players across all 20 clubs → 400 feature vectors
+(the rest fall below a 450-minute sample floor).
 
 The seven available features, and the entire style vocabulary:
 
@@ -135,8 +135,9 @@ prog_passes_p90  prog_carries_p90  prog_passes_received_p90
 - **Position granularity is GK/DF/MF/FW only.** "Left-back" is expressed
   through the weights, so a left-back query also surfaces ball-playing
   centre-backs. Defensible, but not precise.
-- **Four in-scope clubs have zero rows** — Coventry, Hull, Leeds, and
-  Sunderland were in the Championship in 2024-25.
+- **A player's club is where he played in 2024-25**, not where he is now.
+  There is no transfer data, so the scope is "everyone who played in the
+  2024-25 Premier League" rather than any present-day squad.
 - **The NL→weights translation is the model's judgement**, not a validated
   mapping. Every result echoes `interpreted_as` so it's auditable.
 

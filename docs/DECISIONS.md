@@ -15,10 +15,10 @@ fans/recruiters/coaches via a Listen Labs contact.
 
 ## Scope decisions (final, do not re-litigate unless asked)
 - **League**: Premier League only.
-- **Squad scope**: current 2026-27 PL clubs only (20 teams) — NOT every
-  player who's ever played in the PL. See `src/config.py` `CURRENT_PL_CLUBS`
-  for the exact 20 (17 retained from 2025-26 + Coventry City, Ipswich Town,
-  Hull City promoted; West Ham, Burnley, Wolves relegated out).
+- **Squad scope**: the 20 clubs of the 2024-25 Premier League — i.e. every
+  club in the dataset. See `src/config.py` `IN_SCOPE_CLUBS`. This was
+  originally scoped to the current 2026-27 squads; see "Why scope is the
+  season, not the present day" below for why that was wrong.
 - **Historical depth**: originally planned 5 seasons, recency-weighted.
   **Reality check**: currently single-season only (2024-25) due to data
   source constraints — see "Data source" below. `build_features.py` still has
@@ -65,17 +65,29 @@ Went through two Kaggle dead-ends before landing on a working dataset:
    `_assert_season_totals()` in `ingest.py` guards this.
 2. **FBref short club names.** The `Squad` column says `Brighton`,
    `Manchester Utd`, `Newcastle Utd`, `Nott'ham Forest`, `Tottenham` — none of
-   which match `CURRENT_PL_CLUBS`. `config.CLUB_NAME_MAP` normalizes them
+   which match `IN_SCOPE_CLUBS`. `config.CLUB_NAME_MAP` normalizes them
    BEFORE filtering. Without it, five clubs silently vanish from the dataset.
 
-### Clubs with zero rows (expected, not a bug)
-Four in-scope clubs weren't in the PL in 2024-25 — see
-`config.CLUBS_MISSING_FROM_DATA`:
-- **Coventry City, Hull City** — promoted for 2026-27, Championship in 2024-25
-- **Leeds United, Sunderland** — promoted for 2025-26, Championship in 2024-25
+### Why scope is the season, not the present day
+The club list was originally the current 2026-27 Premier League, on the logic
+that a scouting tool should only surface players you could realistically sign
+or already have.
 
-Note **Ipswich Town DOES have data** (32 players) — they were in the PL in
-2024-25 and relegated, then promoted again for 2026-27.
+That is wrong in both directions, because the dataset carries no transfer
+information — a player's club is the club he played for in 2024-25. Scoping to
+2026-27 squads excluded Matheus Cunha (15G 6A, 144 progressive passes) and
+Mohammed Kudus (98 progressive carries) because Wolves and West Ham are not in
+that list, despite both having since moved TO Premier League clubs. Meanwhile
+it kept anyone who played for a retained club in 2024-25 and has since left the
+league entirely, labelled with a club they no longer play for.
+
+127 players — including Bowen, Paquetá, João Gomes and Aït-Nouri — were being
+discarded to buy a currency guarantee the data cannot provide. Scope is now the
+season the data describes, which is a claim it can support.
+
+The `players.club` column is named for what it holds: the club played for in
+the loaded season. It was `current_club`, which was the source of the
+confusion.
 
 ### Stats this source does NOT have
 No tackles, interceptions, pressures, or pass completion %. Those columns exist
@@ -84,7 +96,7 @@ them entirely, and `build_features.py`'s `COUNTING_STATS` excludes them (an
 all-NULL stat becomes an all-zero feature that dilutes every similarity score).
 
 ## Files already built
-- `src/config.py` — `CURRENT_PL_CLUBS`, `CLUB_NAME_MAP`, `CLUBS_MISSING_FROM_DATA`,
+- `src/config.py` — `IN_SCOPE_CLUBS`, `CLUB_NAME_MAP`,
   `PLAYER_STATS_CSV`, `DATA_SEASON`, `FEATURE_GLOSSARY` / `FEATURE_COLUMNS`
   (the style vocabulary, fed to the agent), and `STYLE_PRESETS` — six worked
   examples, NOT a fixed menu (`ROLE_ARCHETYPES` is a backwards-compatible alias).
@@ -92,8 +104,7 @@ all-NULL stat becomes an all-zero feature that dilutes every similarity score).
   `prog_passes_received` for PrgR), player_features (incl. `total_minutes`,
   `feature_json` z-scores, `raw_per90_json`, `percentiles_json`).
 - `src/ingest.py` — loads the CSV directly (no scraping), normalizes club
-  names, filters to `CURRENT_PL_CLUBS`, loads into SQLite. **Verified against
-  the real CSV.**
+  names, filters to `IN_SCOPE_CLUBS`, loads into SQLite.
 - `src/build_features.py` — recency-weighted per-90 stats, z-score
   normalization. **Verified against the real data.**
 - `src/agent_tools.py` — three tools (`query_players`, `find_players`,
@@ -185,11 +196,10 @@ expressed through the weights, not the filter. Passing `position="LB"` returns
 an error saying exactly that.
 
 ## Pipeline```
-python src/ingest.py          -> Filtered 574 -> 447 rows, 16 clubs
-python src/build_features.py  -> 315 feature vectors (450-minute floor)
+python src/ingest.py          -> 574 rows across 20 clubs
+python src/build_features.py  -> 400 feature vectors (450-minute floor)
 ```
-447 of 574 players are in scope; 315 clear the 450-minute sample floor.
-Excluded as out of scope: Leicester City, Southampton, West Ham, Wolves.
+All 574 players are in scope; 400 clear the 450-minute sample floor.
 
 Raw-data sanity check passed — top scorers match reality for 2024-25:
 Salah 29, Isak 23, Haaland 22, Mbeumo 20, Wood 20. (This also confirms the

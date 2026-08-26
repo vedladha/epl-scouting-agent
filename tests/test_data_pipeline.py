@@ -8,12 +8,9 @@ import json
 
 import pandas as pd
 
-from config import CLUB_NAME_MAP, CURRENT_PL_CLUBS, FEATURE_COLUMNS
+from config import CLUB_NAME_MAP, FEATURE_COLUMNS, IN_SCOPE_CLUBS
 from conftest import CSV, needs_csv, needs_db
 from ingest import COLUMN_MAP
-
-OUT_OF_SCOPE_IN_2024_25 = {"Leicester City", "Southampton", "West Ham", "Wolves"}
-
 
 @needs_csv
 def test_column_map_reads_season_totals_not_the_per90_duplicates():
@@ -30,16 +27,24 @@ def test_column_map_reads_season_totals_not_the_per90_duplicates():
 
 
 @needs_csv
-def test_club_name_map_catches_every_in_scope_fbref_short_name():
+def test_every_club_in_the_csv_maps_into_scope():
     """
     Regression: the CSV uses 'Brighton', 'Manchester Utd', "Nott'ham Forest".
-    Filtering without normalising silently dropped five clubs and still
-    produced a dataset that looked fine.
+    Filtering without normalising silently dropped those clubs and still
+    produced a dataset that looked fine. Since the scope is now the season we
+    actually have data for, ANY unmapped club is a spelling bug.
     """
     raw = set(pd.read_csv(CSV)["Squad"].dropna().unique())
-    unmapped = {c for c in raw if CLUB_NAME_MAP.get(c, c) not in CURRENT_PL_CLUBS}
-    assert unmapped == OUT_OF_SCOPE_IN_2024_25, \
-        f"unexpected unmapped clubs — likely a spelling miss: {unmapped - OUT_OF_SCOPE_IN_2024_25}"
+    unmapped = {c for c in raw if CLUB_NAME_MAP.get(c, c) not in IN_SCOPE_CLUBS}
+    assert not unmapped, f"clubs missing from CLUB_NAME_MAP or IN_SCOPE_CLUBS: {unmapped}"
+
+
+@needs_csv
+def test_no_players_are_dropped_by_the_club_filter():
+    """The 2024-25 scope covers the whole dataset — nobody should be excluded."""
+    df = pd.read_csv(CSV)
+    df["Squad"] = df["Squad"].replace(CLUB_NAME_MAP)
+    assert len(df[df["Squad"].isin(IN_SCOPE_CLUBS)]) == len(df)
 
 
 @needs_csv
@@ -79,10 +84,10 @@ def test_percentiles_are_computed_against_positional_peers(db):
 
 
 @needs_db
-def test_only_current_pl_clubs_are_ranked(db):
+def test_only_in_scope_clubs_are_ranked(db):
     clubs = {c for (c,) in db.execute(
-        "SELECT DISTINCT current_club FROM players JOIN player_features USING (player_id)")}
-    assert clubs <= set(CURRENT_PL_CLUBS), f"out of scope: {clubs - set(CURRENT_PL_CLUBS)}"
+        "SELECT DISTINCT club FROM players JOIN player_features USING (player_id)")}
+    assert clubs <= set(IN_SCOPE_CLUBS), f"out of scope: {clubs - set(IN_SCOPE_CLUBS)}"
 
 
 @needs_db

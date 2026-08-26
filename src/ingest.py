@@ -2,7 +2,7 @@
 Day 1: Data ingestion.
 
 Loads the Kaggle FBref Premier League player-stats CSV into SQLite per
-schema.sql, filtered to CURRENT_PL_CLUBS.
+schema.sql, filtered to IN_SCOPE_CLUBS.
 
 NOT a scraper. FBref is behind Cloudflare and 403s all scraping attempts —
 that route is closed, don't reintroduce it. The dataset is a static download:
@@ -21,10 +21,9 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).parent))
 from config import (
     CLUB_NAME_MAP,
-    CLUBS_MISSING_FROM_DATA,
-    CURRENT_PL_CLUBS,
     DATA_SEASON,
     DB_PATH,
+    IN_SCOPE_CLUBS,
     PLAYER_STATS_CSV,
 )
 
@@ -107,17 +106,18 @@ def load_csv(csv_path: str) -> pd.DataFrame:
         raise RuntimeError(f"CSV is missing expected columns: {missing}")
 
     # Normalize FBref's short club names onto our canonical spellings BEFORE
-    # filtering — otherwise Brighton/Man Utd/Newcastle/Forest/Spurs drop out.
+    # filtering — otherwise the abbreviated clubs silently drop out.
     df["Squad"] = df["Squad"].replace(CLUB_NAME_MAP)
 
     before = len(df)
-    df = df[df["Squad"].isin(CURRENT_PL_CLUBS)].copy()
-    print(f"Filtered {before} -> {len(df)} rows (current PL clubs only)")
-
-    dropped = sorted(set(pd.read_csv(path)["Squad"].replace(CLUB_NAME_MAP).unique())
-                     - set(CURRENT_PL_CLUBS))
-    if dropped:
-        print(f"  out of scope, excluded: {', '.join(dropped)}")
+    unknown = sorted(set(df["Squad"]) - set(IN_SCOPE_CLUBS))
+    df = df[df["Squad"].isin(IN_SCOPE_CLUBS)].copy()
+    print(f"Filtered {before} -> {len(df)} rows")
+    if unknown:
+        # Every club in the CSV should be in scope. Anything here is a spelling
+        # mismatch that would silently shrink the dataset, not a real exclusion.
+        print(f"  [warn] clubs not in IN_SCOPE_CLUBS — check CLUB_NAME_MAP: "
+              f"{', '.join(unknown)}")
 
     return df
 
@@ -138,7 +138,7 @@ def load_into_db(conn: sqlite3.Connection, df: pd.DataFrame, season: str) -> int
 
         conn.execute(
             """INSERT OR REPLACE INTO players
-               (player_id, name, current_club, position, detailed_position, age, nationality)
+               (player_id, name, club, position, detailed_position, age, nationality)
                VALUES (?, ?, ?, ?, ?, ?, ?)""",
             (player_id, row["Player"], club,
              position,                                    # full 'DF,MF' so LIKE matches either
@@ -169,14 +169,9 @@ def main():
     inserted = load_into_db(conn, df, args.season)
     print(f"Loaded {inserted} player-rows across {df['Squad'].nunique()} clubs")
 
-    absent = [c for c in CURRENT_PL_CLUBS if c not in set(df["Squad"])]
+    absent = [c for c in IN_SCOPE_CLUBS if c not in set(df["Squad"])]
     if absent:
-        print(f"\nIn-scope clubs with ZERO rows (weren't in the PL in {args.season} "
-              f"— expected, not a bug):\n  {', '.join(absent)}")
-        unexpected = sorted(set(absent) - set(CLUBS_MISSING_FROM_DATA))
-        if unexpected:
-            print(f"  [warn] NOT in the known-missing list — check name spelling "
-                  f"against the CSV: {', '.join(unexpected)}")
+        print(f"\n[warn] in-scope clubs with zero rows: {', '.join(absent)}")
 
     print(f"\nNote: no defensive stats in this source (tackles/interceptions/"
           f"pressures/pass%) — those columns are NULL by design.")

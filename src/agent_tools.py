@@ -59,7 +59,7 @@ def query_players(position: str = None, min_age: int = None, max_age: int = None
                   club: str = None, exclude_club: str = None,
                   min_minutes: int = None, limit: int = 50) -> list[dict]:
     """Filter the current-squad player pool by basic criteria. No style scoring."""
-    sql = ["""SELECT p.player_id, p.name, p.current_club, p.position, p.age,
+    sql = ["""SELECT p.player_id, p.name, p.club, p.position, p.age,
                      f.total_minutes
               FROM players p
               LEFT JOIN player_features f ON p.player_id = f.player_id
@@ -75,10 +75,10 @@ def query_players(position: str = None, min_age: int = None, max_age: int = None
         sql.append("AND p.age <= ?")
         params.append(max_age)
     if club:
-        sql.append("AND p.current_club = ?")
+        sql.append("AND p.club = ?")
         params.append(club)
     if exclude_club:
-        sql.append("AND p.current_club != ?")
+        sql.append("AND p.club != ?")
         params.append(exclude_club)
     if min_minutes:
         sql.append("AND f.total_minutes >= ?")
@@ -118,7 +118,7 @@ def _validate_weights(style_weights: dict) -> dict | None:
 
 def _load_pool(position=None, min_age=None, max_age=None, club=None,
                exclude_club=None, min_minutes=None) -> list[sqlite3.Row]:
-    sql = ["""SELECT p.player_id, p.name, p.current_club, p.position, p.age,
+    sql = ["""SELECT p.player_id, p.name, p.club, p.position, p.age,
                      p.detailed_position, f.total_minutes, f.feature_json,
                      f.raw_per90_json, f.percentiles_json
               FROM players p JOIN player_features f ON p.player_id = f.player_id
@@ -134,10 +134,10 @@ def _load_pool(position=None, min_age=None, max_age=None, club=None,
         sql.append("AND p.age <= ?")
         params.append(max_age)
     if club:
-        sql.append("AND p.current_club = ?")
+        sql.append("AND p.club = ?")
         params.append(club)
     if exclude_club:
-        sql.append("AND p.current_club != ?")
+        sql.append("AND p.club != ?")
         params.append(exclude_club)
     if min_minutes:
         sql.append("AND f.total_minutes >= ?")
@@ -238,7 +238,7 @@ def _result_row(row: sqlite3.Row, score_name: str, score: float,
     return {
         "player_id": row["player_id"],
         "name": row["name"],
-        "club": row["current_club"],
+        "club": row["club"],
         "position": row["position"],
         "age": row["age"],
         "minutes": row["total_minutes"],
@@ -315,9 +315,9 @@ def find_players(style_weights: dict = None, preset: str = None,
     pool = _load_pool(position, min_age, max_age, club, exclude_club, min_minutes)
     if not pool:
         return {"error": "No players matched those filters.",
-                "hint": "Loosen the filters — note that four in-scope clubs "
-                        "(Coventry, Hull, Leeds, Sunderland) have no 2024-25 "
-                        "data at all.",
+                "hint": "Loosen the filters. Note that club names must match "
+                        "the 2024-25 Premier League — a club promoted since "
+                        "then has no rows.",
                 "results": []}
 
     scored = []
@@ -365,7 +365,7 @@ def get_player_report(player_id: str) -> dict:
     """Full stat line for one player — season totals, per-90s, and z-scores."""
     with _conn() as conn:
         player = conn.execute(
-            """SELECT name, current_club, position, age, nationality
+            """SELECT name, club, position, age, nationality
                FROM players WHERE player_id = ?""", (player_id,)).fetchone()
         if player is None:
             return {"error": f"player_id {player_id!r} not found",
@@ -383,7 +383,7 @@ def get_player_report(player_id: str) -> dict:
 
     report = {
         "player_id": player_id,
-        "name": player["name"], "club": player["current_club"],
+        "name": player["name"], "club": player["club"],
         "position": player["position"], "age": player["age"],
         "nationality": player["nationality"],
         "season_totals": [dict(s) for s in stats],
@@ -617,8 +617,11 @@ through the weights.
   completion. If the user asks for a ball-winner, a dominant defender, or a
   pressing monster, say directly that this data cannot measure that. Do not
   substitute an attacking proxy and let it pass as defending.
-- Four in-scope clubs (Coventry, Hull, Leeds, Sunderland) have no 2024-25 data
-  because they were in the Championship. Say so if it's relevant.
+- The data covers everyone who played in the 2024-25 Premier League, and a
+  player's club is where he played THAT season — not necessarily where he is
+  now. There is no transfer information, so never imply a listed club is
+  current. If the user asks about a club that was not in the 2024-25 PL, say
+  it is not in the data rather than returning nothing.
 - Write for a fan, scout, or recruiter — NOT for an analyst. Most people cannot
   read a raw per-90 rate: "5.2 progressive carries per 90" tells them nothing,
   because they have no idea whether that is good. Every stat in a tool result

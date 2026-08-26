@@ -1,19 +1,16 @@
 """
 Central config for the EPL Scouting Agent.
-Edit CURRENT_PL_CLUBS each season — this is the single source of truth
-for which players are "in scope" for recommendations.
+
+Single source of truth for the seasons loaded, the clubs in scope, and the
+feature vocabulary the agent composes style profiles from.
 """
 
 # --- Season scope ---
-# Kept for the multi-season stretch goal. build_features.py derives its
-# recency weights from this list; with a single season loaded the weight is
-# constant and cancels out of the weighted average, so it's a no-op today.
+# Seasons loaded, oldest first. build_features.py derives recency weights from
+# the order, so add new seasons in chronological order. With one season the
+# weight is a constant and cancels out of the weighted average.
 HISTORICAL_SEASONS = [
-    "2021-2022",
-    "2022-2023",
-    "2023-2024",
     "2024-2025",
-    "2025-2026",
 ]
 
 # --- Data source ---
@@ -22,12 +19,22 @@ HISTORICAL_SEASONS = [
 PLAYER_STATS_CSV = "data/kaggle_raw/fbref_PL_2024-25.csv"
 DATA_SEASON = "2024-2025"
 
-MVP_SEASON = DATA_SEASON
-
-# --- Current squads (2026-27 season) ---
-# 17 clubs retained from 2025-26 + 3 promoted (Coventry City, Ipswich Town, Hull City)
-# Relegated from 2025-26: West Ham United, Burnley, Wolverhampton Wanderers
-CURRENT_PL_CLUBS = [
+# --- Clubs in scope ---
+# The 20 clubs that played the 2024-25 Premier League — i.e. every club in the
+# dataset. Deliberately NOT the current 2026-27 squads.
+#
+# Filtering by present-day squads sounds more useful for scouting and is
+# actually wrong in both directions, because the dataset has no transfer
+# information: a player's club here is the club he played for in 2024-25, not
+# where he is now. Scoping to 2026-27 clubs dropped Matheus Cunha and Mohammed
+# Kudus — who have since moved TO Premier League clubs — while keeping players
+# who have since left the league entirely. 127 players were excluded to buy a
+# guarantee the data cannot provide.
+#
+# So the scope claim this list makes is one the data can support: every player
+# who appeared in the 2024-25 Premier League. Add a season's clubs here when
+# you add that season's data.
+IN_SCOPE_CLUBS = [
     "Arsenal",
     "Aston Villa",
     "Bournemouth",
@@ -37,42 +44,31 @@ CURRENT_PL_CLUBS = [
     "Crystal Palace",
     "Everton",
     "Fulham",
-    "Leeds United",
+    "Ipswich Town",
+    "Leicester City",
     "Liverpool",
     "Manchester City",
     "Manchester United",
     "Newcastle United",
     "Nottingham Forest",
-    "Sunderland",
+    "Southampton",
     "Tottenham Hotspur",
-    "Coventry City",     # promoted 2026-27
-    "Ipswich Town",      # promoted 2026-27
-    "Hull City",         # promoted 2026-27
+    "West Ham United",
+    "Wolverhampton Wanderers",
 ]
 
-# FBref uses short club names in the CSV's Squad column. Map them onto the
-# canonical CURRENT_PL_CLUBS spellings BEFORE filtering, or five clubs
-# (Brighton, Man Utd, Newcastle, Forest, Spurs) silently drop out.
-# Clubs in the CSV but absent here (Leicester, Southampton, West Ham, Wolves)
-# are out of scope and get filtered away.
+# FBref abbreviates club names in the CSV's Squad column. Normalise them onto
+# the canonical spellings BEFORE filtering, or the abbreviated clubs silently
+# drop out of the dataset.
 CLUB_NAME_MAP = {
     "Brighton": "Brighton & Hove Albion",
     "Manchester Utd": "Manchester United",
     "Newcastle Utd": "Newcastle United",
     "Nott'ham Forest": "Nottingham Forest",
     "Tottenham": "Tottenham Hotspur",
+    "West Ham": "West Ham United",
+    "Wolves": "Wolverhampton Wanderers",
 }
-
-# Four in-scope clubs have ZERO rows in the 2024-25 dataset — they weren't in
-# the PL that season. Expected, not a bug:
-#   Coventry City, Hull City  — promoted for 2026-27, Championship in 2024-25
-#   Leeds United, Sunderland  — promoted for 2025-26, Championship in 2024-25
-CLUBS_MISSING_FROM_DATA = [
-    "Coventry City",
-    "Hull City",
-    "Leeds United",
-    "Sunderland",
-]
 
 # --- Feature space ---
 # The seven per-90 stats build_features.py produces. This IS the entire
