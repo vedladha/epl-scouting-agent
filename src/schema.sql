@@ -1,23 +1,21 @@
 -- EPL Scouting Agent schema
--- One row per player-season-team (handles mid-season transfers)
 
 CREATE TABLE IF NOT EXISTS players (
-    player_id       TEXT PRIMARY KEY,   -- fbref id or normalized name+dob hash
+    player_id       TEXT PRIMARY KEY,  
     name            TEXT NOT NULL,
     club            TEXT NOT NULL,      -- club played for in the loaded season,
-                                        -- NOT necessarily where they are now
-    position        TEXT,               -- e.g. 'DF', 'MF', 'FW', 'GK'
-    detailed_position TEXT,             -- e.g. 'LB', 'CB', 'CM', 'ST'
+                                        
+    position        TEXT,               
+    detailed_position TEXT,            
     age             INTEGER,
     nationality     TEXT
 );
 
 CREATE TABLE IF NOT EXISTS player_season_stats (
     player_id       TEXT NOT NULL,
-    season          TEXT NOT NULL,      -- e.g. '2025-2026'
-    club            TEXT NOT NULL,      -- club they played for THAT season
+    season          TEXT NOT NULL,      
+    club            TEXT NOT NULL,      
     minutes         INTEGER,
-    -- raw counting stats (per-90 computed in build_features.py)
     goals           REAL,
     assists         REAL,
     npxg            REAL,
@@ -28,7 +26,7 @@ CREATE TABLE IF NOT EXISTS player_season_stats (
     passes_attempted REAL,
     prog_passes     REAL,
     prog_carries    REAL,
-    prog_passes_received REAL,   -- FBref PrgR: progressive passes RECEIVED
+    prog_passes_received REAL,   
     passes_into_final_third REAL,
     touches_mid3    REAL,
     touches_att_pen REAL,
@@ -44,14 +42,13 @@ CREATE TABLE IF NOT EXISTS player_season_stats (
     FOREIGN KEY (player_id) REFERENCES players(player_id)
 );
 
--- Precomputed per-90 feature vectors, one row per player using their most
--- recent season(s) — populated by build_features.py, consumed by agent_tools.py
+
 CREATE TABLE IF NOT EXISTS player_features (
     player_id       TEXT PRIMARY KEY,
-    season_span     TEXT,   -- e.g. '2021-2022:2025-2026' — which seasons fed this vector
-    total_minutes   INTEGER,-- sample size behind the vector; also a filter
-    feature_json    TEXT,   -- JSON blob of z-scored per-90 stats (for ranking)
-    raw_per90_json  TEXT,   -- JSON blob of RAW per-90 stats (for citing real numbers)
-    percentiles_json TEXT,  -- percentile rank vs same-position PL players (for explaining them)
+    season_span     TEXT,   
+    total_minutes   INTEGER,
+    feature_json    TEXT,   
+    raw_per90_json  TEXT,   
+    percentiles_json TEXT,
     FOREIGN KEY (player_id) REFERENCES players(player_id)
 );
