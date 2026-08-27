@@ -8,7 +8,7 @@ import json
 
 import pandas as pd
 
-from config import CLUB_NAME_MAP, FEATURE_COLUMNS, IN_SCOPE_CLUBS
+from config import CLUB_NAME_MAP, CURRENT_PL_CLUBS, FEATURE_COLUMNS
 from conftest import CSV, needs_csv, needs_db
 from ingest import COLUMN_MAP
 
@@ -35,8 +35,8 @@ def test_every_club_in_the_csv_maps_into_scope():
     actually have data for, ANY unmapped club is a spelling bug.
     """
     raw = set(pd.read_csv(CSV)["Squad"].dropna().unique())
-    unmapped = {c for c in raw if CLUB_NAME_MAP.get(c, c) not in IN_SCOPE_CLUBS}
-    assert not unmapped, f"clubs missing from CLUB_NAME_MAP or IN_SCOPE_CLUBS: {unmapped}"
+    unmapped = {c for c in raw if CLUB_NAME_MAP.get(c, c) not in CURRENT_PL_CLUBS}
+    assert not unmapped, f"clubs missing from CLUB_NAME_MAP or CURRENT_PL_CLUBS: {unmapped}"
 
 
 @needs_csv
@@ -44,7 +44,7 @@ def test_no_players_are_dropped_by_the_club_filter():
     """The 2024-25 scope covers the whole dataset — nobody should be excluded."""
     df = pd.read_csv(CSV)
     df["Squad"] = df["Squad"].replace(CLUB_NAME_MAP)
-    assert len(df[df["Squad"].isin(IN_SCOPE_CLUBS)]) == len(df)
+    assert len(df[df["Squad"].isin(CURRENT_PL_CLUBS)]) == len(df)
 
 
 @needs_csv
@@ -87,7 +87,7 @@ def test_percentiles_are_computed_against_positional_peers(db):
 def test_only_in_scope_clubs_are_ranked(db):
     clubs = {c for (c,) in db.execute(
         "SELECT DISTINCT club FROM players JOIN player_features USING (player_id)")}
-    assert clubs <= set(IN_SCOPE_CLUBS), f"out of scope: {clubs - set(IN_SCOPE_CLUBS)}"
+    assert clubs <= set(CURRENT_PL_CLUBS), f"out of scope: {clubs - set(CURRENT_PL_CLUBS)}"
 
 
 @needs_db

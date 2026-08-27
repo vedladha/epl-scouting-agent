@@ -50,6 +50,14 @@ def weighted_per90(df: pd.DataFrame) -> pd.DataFrame:
 
     rows = []
     for player_id, g in df.groupby("player_id"):
+        # Goalkeepers are excluded entirely. None of the seven features mean
+        # anything for them — a keeper's line is zeros across the board, and
+        # percentile-ranking zeros against other zeros invents distinctions
+        # that do not exist ("73rd percentile at creating chances" off 0.01
+        # xA/90). Ranking keepers needs save and shot-stopping data this
+        # source does not have.
+        if (g["detailed_position"].dropna() == "GK").any():
+            continue
         total_minutes = g["minutes"].sum()
         if total_minutes < 450:  # ~5 full matches — floor to avoid noisy small samples
             continue

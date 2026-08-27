@@ -1,6 +1,6 @@
 """
 Loads the Kaggle FBref Premier League player-stats CSV into SQLite per
-schema.sql, filtered to IN_SCOPE_CLUBS.
+schema.sql, filtered to CURRENT_PL_CLUBS.
 """
 import argparse
 import sqlite3
@@ -12,9 +12,9 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).parent))
 from config import (
     CLUB_NAME_MAP,
+    CURRENT_PL_CLUBS,
     DATA_SEASON,
     DB_PATH,
-    IN_SCOPE_CLUBS,
     PLAYER_STATS_CSV,
 )
 
@@ -83,11 +83,11 @@ def load_csv(csv_path: str) -> pd.DataFrame:
     df["Squad"] = df["Squad"].replace(CLUB_NAME_MAP)
 
     before = len(df)
-    unknown = sorted(set(df["Squad"]) - set(IN_SCOPE_CLUBS))
-    df = df[df["Squad"].isin(IN_SCOPE_CLUBS)].copy()
+    unknown = sorted(set(df["Squad"]) - set(CURRENT_PL_CLUBS))
+    df = df[df["Squad"].isin(CURRENT_PL_CLUBS)].copy()
     print(f"Filtered {before} -> {len(df)} rows")
     if unknown:
-        print(f"  [warn] clubs not in IN_SCOPE_CLUBS — check CLUB_NAME_MAP: "
+        print(f"  [warn] clubs not in CURRENT_PL_CLUBS — check CLUB_NAME_MAP: "
             f"{', '.join(unknown)}")
 
     return df
@@ -139,7 +139,7 @@ def main():
     inserted = load_into_db(conn, df, args.season)
     print(f"Loaded {inserted} player-rows across {df['Squad'].nunique()} clubs")
 
-    absent = [c for c in IN_SCOPE_CLUBS if c not in set(df["Squad"])]
+    absent = [c for c in CURRENT_PL_CLUBS if c not in set(df["Squad"])]
     if absent:
         print(f"\n[warn] in-scope clubs with zero rows: {', '.join(absent)}")
 

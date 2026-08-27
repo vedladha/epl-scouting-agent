@@ -5,10 +5,12 @@ Every error path here exists so a confused model gets a message it can act on
 instead of a silent zero. If these regress, the agent fails quietly — which is
 the failure mode this project keeps having.
 """
+import json
+
 import pytest
 
 from agent_tools import _validate_weights, find_players, get_player_report
-from config import FEATURE_COLUMNS, STYLE_PRESETS
+from config import FEATURE_COLUMNS, FEATURE_LABELS, STYLE_PRESETS
 from conftest import needs_db
 
 
@@ -74,7 +76,7 @@ def test_results_speak_plain_english_with_a_named_comparison_group():
     top = res["results"][0]
     assert top["compared_against"] == "Premier League forwards"
     stat = top["stats"][0]
-    assert set(stat) == {"stat", "feature", "per_90", "percentile", "rating"}
+    assert set(stat) == {"stat", "per_90", "percentile", "rating"}
     assert "_p90" not in stat["stat"], "the user-facing label leaked a column name"
     assert 0 <= stat["percentile"] <= 100
 
@@ -83,14 +85,15 @@ def test_results_speak_plain_english_with_a_named_comparison_group():
 def test_stats_are_ordered_by_how_much_they_mattered_to_the_query():
     res = find_players(style_weights={"xa_p90": 0.2, "prog_carries_p90": 1.9},
                        position="FW", k=1)
-    assert res["results"][0]["stats"][0]["feature"] == "prog_carries_p90"
+    assert res["results"][0]["stats"][0]["stat"] == FEATURE_LABELS["prog_carries_p90"]
 
 
 @needs_db
 def test_zero_weight_features_are_left_out_of_the_explanation():
     res = find_players(style_weights={"prog_carries_p90": 1.0, "xa_p90": 0.0},
                        position="FW", k=1)
-    assert [s["feature"] for s in res["results"][0]["stats"]] == ["prog_carries_p90"]
+    labels = [s["stat"] for s in res["results"][0]["stats"]]
+    assert labels == [FEATURE_LABELS["prog_carries_p90"]]
 
 
 @needs_db
@@ -116,11 +119,11 @@ def test_a_reference_player_is_never_returned_as_their_own_match():
 
 
 @needs_db
-def test_similarity_and_style_use_different_scores():
+def test_similarity_results_describe_closeness_in_words():
     style = find_players(style_weights={"prog_carries_p90": 1.0}, k=1)
     similar = find_players(similar_to_player_id="Bukayo_Saka_Arsenal", k=1)
-    assert style["score_type"] == "fit_score"
-    assert similar["score_type"] == "style_match"
+    assert "resemblance" not in style["results"][0]
+    assert similar["results"][0]["resemblance"] in {"very close", "close", "loose"}
 
 
 @needs_db
@@ -132,8 +135,11 @@ def test_an_impossible_filter_explains_itself_rather_than_returning_nothing():
 @needs_db
 def test_results_are_ranked_best_first():
     res = find_players(style_weights={"prog_carries_p90": 1.0}, k=10)
-    scores = [r["fit_score"] for r in res["results"]]
-    assert scores == sorted(scores, reverse=True)
+    assert [r["rank"] for r in res["results"]] == list(range(1, 11))
+    # Ordering IS the ranking signal — no score is exposed to check it against.
+    tops = res["results"][0]["stats"][0]["percentile"]
+    lasts = res["results"][-1]["stats"][0]["percentile"]
+    assert tops >= lasts
 
 
 # ---------- player report ----------
@@ -151,3 +157,43 @@ def test_player_report_covers_every_feature_in_plain_english():
 def test_missing_player_report_points_at_the_lookup_tool():
     rep = get_player_report("Nobody_Anywhere")
     assert "error" in rep and "query_players" in rep["hint"]
+
+
+# ---------- what the model is NOT allowed to see ----------
+
+INTERNAL_FIELDS = {"fit_score", "raw_fit_score", "sample_reliability",
+                   "style_match", "score_type", "score_meaning", "feature"}
+
+
+@needs_db
+def test_no_internal_scoring_fields_reach_the_model():
+    """
+    The payload must not carry anything the user should never hear.
+
+    These fields used to be sent and the system prompt had to forbid quoting
+    each one — a rule the model broke by printing `goals_p90` tables to users.
+    Not sending a value is stronger than instructing against repeating it, so
+    this guards the payload rather than the prompt.
+    """
+    res = find_players(style_weights={"prog_carries_p90": 1.5, "npxg_p90": -0.5},
+                       position="FW", k=3)
+    assert not INTERNAL_FIELDS & set(res), f"envelope leaks: {INTERNAL_FIELDS & set(res)}"
+    for entry in res["results"]:
+        assert not INTERNAL_FIELDS & set(entry), f"result leaks: {INTERNAL_FIELDS & set(entry)}"
+        for stat in entry["stats"]:
+            assert not INTERNAL_FIELDS & set(stat), f"stat leaks: {INTERNAL_FIELDS & set(stat)}"
+
+
+@needs_db
+def test_no_column_names_appear_anywhere_in_a_result():
+    """A column name the model never receives is a column name it cannot print."""
+    res = find_players(style_weights={"prog_carries_p90": 1.5}, position="FW", k=3)
+    blob = json.dumps(res["results"])
+    for feature in FEATURE_COLUMNS:
+        assert feature not in blob, f"{feature} reached the model in a result"
+
+
+@needs_db
+def test_sample_size_is_expressed_in_words():
+    res = find_players(style_weights={"prog_carries_p90": 1.0}, position="FW", k=20)
+    assert all(isinstance(r["sample"], str) for r in res["results"])

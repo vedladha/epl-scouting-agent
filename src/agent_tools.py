@@ -1,23 +1,3 @@
-"""
-Agent tools + Claude tool-use orchestration.
-
-The core idea: there is NO fixed menu of roles. A user can ask for any style
-in plain English ("a striker who drops deep and creates", "someone who beats
-his man and gets crosses in", "a midfielder who breaks lines by carrying").
-The agent translates that ask into a WEIGHT VECTOR over the seven per-90
-features that actually exist (see config.FEATURE_GLOSSARY), and the scoring
-here ranks players against it. config.STYLE_PRESETS are worked examples and
-shortcuts, not the vocabulary.
-
-Tools:
-  - query_players(filters)        -> roster filtering, no style involved
-  - find_players(style_weights|preset|similar_to_player_id, filters, k)
-  - get_player_report(player_id)  -> full stat line for one player
-
-Wired to Claude via tool use, including the "challenge/re-justify" loop: the
-conversation history is preserved, so a follow-up "why not X instead?" lets
-the model re-call tools and respond with fresh justification.
-"""
 import json
 import sqlite3
 from contextlib import contextmanager
@@ -35,16 +15,12 @@ try:
 except ImportError:
     anthropic = None
 
-VALID_POSITIONS = ("GK", "DF", "MF", "FW")
+
+VALID_POSITIONS = ("DF", "MF", "FW")
 
 
 @contextmanager
 def _conn():
-    """
-    Read-only helper. NOTE: `with sqlite3.connect(...)` commits but does NOT
-    close the connection — in a long-lived Streamlit session that leaks a
-    handle per query, so close it explicitly here.
-    """
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     try:
@@ -53,12 +29,10 @@ def _conn():
         conn.close()
 
 
-# ---------- Tool implementations ----------
 
 def query_players(position: str = None, min_age: int = None, max_age: int = None,
                   club: str = None, exclude_club: str = None,
                   min_minutes: int = None, limit: int = 50) -> list[dict]:
-    """Filter the current-squad player pool by basic criteria. No style scoring."""
     sql = ["""SELECT p.player_id, p.name, p.club, p.position, p.age,
                      f.total_minutes
               FROM players p
@@ -91,7 +65,7 @@ def query_players(position: str = None, min_age: int = None, max_age: int = None
 
 
 def _validate_weights(style_weights: dict) -> dict | None:
-    """Return an error payload if the weights are unusable, else None."""
+    # Return an error payload if the weights are unusable, else None
     if not isinstance(style_weights, dict) or not style_weights:
         return {"error": "style_weights must be a non-empty object mapping "
                          "feature names to numeric weights.",
@@ -154,36 +128,12 @@ RELIABILITY_MINUTES = 900
 
 
 def _reliability(minutes: int | None) -> float:
-    """
-    Shrinkage factor in (0, 1): minutes / (minutes + RELIABILITY_MINUTES).
-
-    Without this, every query surfaces cameo players — a striker with 638
-    minutes outscored Haaland and Salah on "most dangerous goalscorer" purely
-    because a hot streak over seven matches produces a wilder per-90 than a
-    full season does. Shrinking the score toward zero in proportion to sample
-    size is the standard fix and keeps small-sample players visible but honest.
-
-    Applied only to fit_score. It scales a player's whole z-vector uniformly,
-    so it would cancel out of a cosine similarity anyway.
-    """
     if not minutes or minutes <= 0:
         return 0.0
     return minutes / (minutes + RELIABILITY_MINUTES)
 
 
 def _fit_score(weights: dict, z_scores: dict) -> float:
-    """
-    Weighted average z-score across the requested features.
-
-    Deliberately NOT cosine similarity. Cosine measures the SHAPE of a profile
-    and ignores magnitude, so it ranks a modest player whose profile points the
-    right way above an extreme one — asking for a goal threat returned Darwin
-    Núñez above Erling Haaland. A weighted mean z-score rewards being far in
-    the direction asked for, which is what "find me the best X" means.
-
-    Scale is interpretable: +1.5 means "on average 1.5 standard deviations
-    above a Premier League regular in the traits you asked for".
-    """
     total_weight = sum(abs(float(w)) for w in weights.values())
     if not total_weight:
         return 0.0
@@ -192,7 +142,6 @@ def _fit_score(weights: dict, z_scores: dict) -> float:
 
 
 def _cosine_sim(a: dict, b: dict) -> float:
-    """Direction-only similarity — the right metric for player-to-player style."""
     keys = sorted(set(a) & set(b))
     if not keys:
         return 0.0
@@ -202,20 +151,10 @@ def _cosine_sim(a: dict, b: dict) -> float:
     return float(np.dot(va, vb) / denom) if denom else 0.0
 
 
-POSITION_NAMES = {"GK": "goalkeepers", "DF": "defenders",
-                  "MF": "midfielders", "FW": "forwards"}
+POSITION_NAMES = {"DF": "defenders", "MF": "midfielders", "FW": "forwards"}
 
 
 def _stat_lines(row: sqlite3.Row, features: list[str]) -> list[dict]:
-    """
-    Explain each relevant stat in terms a non-analyst can act on.
-
-    A raw per-90 rate is meaningless without a reference class — "5.2
-    progressive carries per 90" is unremarkable for a winger and extraordinary
-    for a centre-back, and nobody outside analytics knows which. So every stat
-    ships as: a plain-English name, the number, its percentile against
-    same-position PL players, and a word for that percentile.
-    """
     raw = json.loads(row["raw_per90_json"])
     pcts = json.loads(row["percentiles_json"])
     lines = []
@@ -223,7 +162,6 @@ def _stat_lines(row: sqlite3.Row, features: list[str]) -> list[dict]:
         pct = pcts.get(f, 50)
         lines.append({
             "stat": FEATURE_LABELS.get(f, f),
-            "feature": f,                     # machine name, for follow-up calls
             "per_90": raw.get(f),
             "percentile": pct,
             "rating": percentile_band(pct),
@@ -231,9 +169,30 @@ def _stat_lines(row: sqlite3.Row, features: list[str]) -> list[dict]:
     return lines
 
 
-def _result_row(row: sqlite3.Row, score_name: str, score: float,
-                features: list[str], extra: dict = None) -> dict:
-    """One ranked player, carrying the real numbers behind the score."""
+def _sample_note(minutes: int | None) -> str:
+    """Sample size in words the agent can safely repeat to a user."""
+    if not minutes:
+        return "no minutes"
+    if minutes >= 2200:
+        return "full season"
+    if minutes >= 1200:
+        return "most of a season"
+    if minutes >= 700:
+        return "part season — treat rates as provisional"
+    return "small sample — treat rates as provisional"
+
+
+def _result_row(row: sqlite3.Row, features: list[str]) -> dict:
+    """
+    One ranked player.
+
+    Deliberately carries NOTHING the user should not hear. Earlier versions
+    shipped the internal column names, fit_score, raw_fit_score and
+    sample_reliability, and the system prompt then had to forbid quoting each
+    of them — a rule the model broke by printing a table of `goals_p90`,
+    `npxg_p90` to a user. Not sending a value beats asking for it not to be
+    repeated.
+    """
     group = (row["detailed_position"] or "UNK").upper()
     return {
         "player_id": row["player_id"],
@@ -242,11 +201,10 @@ def _result_row(row: sqlite3.Row, score_name: str, score: float,
         "position": row["position"],
         "age": row["age"],
         "minutes": row["total_minutes"],
-        score_name: round(score, 3),
+        "sample": _sample_note(row["total_minutes"]),
         # Percentiles are vs this group, so the agent can name the comparison.
         "compared_against": f"Premier League {POSITION_NAMES.get(group, 'players')}",
         "stats": _stat_lines(row, features),
-        **(extra or {}),
     }
 
 
@@ -255,15 +213,6 @@ def find_players(style_weights: dict = None, preset: str = None,
                  min_age: int = None, max_age: int = None, club: str = None,
                  exclude_club: str = None, min_minutes: int = None,
                  exclude_ids: list[str] = None, k: int = 8) -> dict:
-    """
-    Rank players by style fit. Exactly one of style_weights / preset /
-    similar_to_player_id defines what "fit" means.
-
-    style_weights is the general case: any plain-English ask, expressed as
-    weights over config.FEATURE_COLUMNS. preset looks up a worked example from
-    config.STYLE_PRESETS. similar_to_player_id finds players whose overall
-    profile resembles a named player.
-    """
     modes = [m for m in (style_weights, preset, similar_to_player_id) if m]
     if len(modes) != 1:
         return {"error": "Provide exactly one of style_weights, preset, or "
@@ -297,20 +246,19 @@ def find_players(style_weights: dict = None, preset: str = None,
             ).fetchone()
         if ref is None:
             return {"error": f"No feature vector for {similar_to_player_id!r}. "
-                             f"Either the player isn't in a current PL squad, or "
-                             f"they played under 450 minutes in 2024-25.",
+                             f"Either they are a goalkeeper (not ranked), played "
+                             f"under 450 minutes in 2024-25, or are not in the "
+                             f"dataset at all.",
                     "hint": "Use query_players to find the exact player_id."}
         reference = json.loads(ref["feature_json"])
         exclude.add(similar_to_player_id)
         features = FEATURE_COLUMNS
-        score_name = "style_match"
     else:
         err = _validate_weights(style_weights)
         if err:
             return err
         features = sorted((f for f, w in style_weights.items() if float(w) != 0),
                           key=lambda f: -abs(float(style_weights[f])))
-        score_name = "fit_score"
 
     pool = _load_pool(position, min_age, max_age, club, exclude_club, min_minutes)
     if not pool:
@@ -320,23 +268,28 @@ def find_players(style_weights: dict = None, preset: str = None,
                         "then has no rows.",
                 "results": []}
 
+    # Score internally. The number never leaves this function: the ordering
+    # carries the ranking and the per-stat percentiles carry the justification,
+    # both of which are safe for the agent to say out loud.
     scored = []
     for row in pool:
         if row["player_id"] in exclude:
             continue
         z = json.loads(row["feature_json"])
-        if reference:
-            scored.append(_result_row(row, score_name, _cosine_sim(reference, z), features))
-            continue
-        unshrunk = _fit_score(style_weights, z)
-        reliability = _reliability(row["total_minutes"])
-        scored.append(_result_row(
-            row, score_name, unshrunk * reliability, features,
-            extra={"raw_fit_score": round(unshrunk, 3),
-                   "sample_reliability": round(reliability, 2)},
-        ))
+        score = (_cosine_sim(reference, z) if reference
+                 else _fit_score(style_weights, z) * _reliability(row["total_minutes"]))
+        scored.append((score, row))
 
-    scored.sort(key=lambda r: -r[score_name])
+    scored.sort(key=lambda pair: -pair[0])
+
+    results = []
+    for rank, (score, row) in enumerate(scored[:k], start=1):
+        entry = _result_row(row, features)
+        entry["rank"] = rank
+        if reference:
+            entry["resemblance"] = ("very close" if score >= 0.95
+                                    else "close" if score >= 0.85 else "loose")
+        results.append(entry)
 
     return {
         # Echo the interpretation back so the agent can explain its reasoning
@@ -348,21 +301,15 @@ def find_players(style_weights: dict = None, preset: str = None,
                     "club": club, "exclude_club": exclude_club,
                     "min_minutes": min_minutes},
         "pool_size": len(scored),
-        "score_type": score_name,
-        "score_meaning": ("cosine similarity of full style profile, -1 to 1"
-                          if reference else
-                          "weighted mean z-score vs Premier League regulars, "
-                          "shrunk toward 0 by sample size. raw_fit_score is the "
-                          "unshrunk value and sample_reliability the factor "
-                          "applied; a low reliability means the per90 numbers "
-                          "come from a small number of minutes and should be "
-                          "quoted with that caveat"),
-        "results": scored[:k],
+        "ranked_by": ("resemblance to that player's overall profile" if reference
+                      else "fit to the requested style, adjusted for how many "
+                           "minutes each player actually played"),
+        "results": results,
     }
 
 
 def get_player_report(player_id: str) -> dict:
-    """Full stat line for one player — season totals, per-90s, and z-scores."""
+    #Full stat line for one player — season totals, per-90s, and z-scores
     with _conn() as conn:
         player = conn.execute(
             """SELECT name, club, position, age, nationality
@@ -389,9 +336,10 @@ def get_player_report(player_id: str) -> dict:
         "season_totals": [dict(s) for s in stats],
     }
     if feat is None:
-        report["note"] = ("No feature vector — under the 450-minute floor, so "
-                          "this player cannot be style-ranked. Season totals "
-                          "above are still real.")
+        report["note"] = ("No feature vector — either a goalkeeper (not ranked "
+                          "at all: this data has no shot-stopping stats) or "
+                          "under the 450-minute floor. The season totals above "
+                          "are still real.")
     else:
         group = (feat["detailed_position"] or "UNK").upper()
         report["minutes"] = feat["total_minutes"]
@@ -402,14 +350,7 @@ def get_player_report(player_id: str) -> dict:
 
 
 def describe_interpretation(tool_name: str, tool_input: dict) -> dict | None:
-    """
-    Turn a find_players call into something a human can read.
 
-    The whole premise of this tool is that a plain-English ask becomes a set of
-    measurable weights. That translation is the part a user most needs to see
-    and argue with — if it stays inside the tool call, the ranking is just
-    another black box that happens to be worded nicely.
-    """
     if tool_name != "find_players":
         return None
 
@@ -455,7 +396,6 @@ def _readable_filters(tool_input: dict) -> list[str]:
     return out
 
 
-# ---------- Claude tool-use wiring ----------
 
 _GLOSSARY_TEXT = "\n".join(f"  - {feat}: {desc}" for feat, desc in FEATURE_GLOSSARY.items())
 _PRESET_TEXT = "\n".join(f"  - {name}: {weights}" for name, weights in STYLE_PRESETS.items())
@@ -511,9 +451,20 @@ TOOL_SCHEMAS = [
             "properties": {
                 "style_weights": {
                     "type": "object",
-                    "description": "Feature name -> numeric weight. The general "
-                                   "case; build this from the user's words.",
-                    "additionalProperties": {"type": "number"},
+                    "description": "The general case: build this from the "
+                                   "user's words. Weight each stat you "
+                                   "actually mean, roughly -2 to +2. A "
+                                   "negative weight means the style is "
+                                   "defined partly by NOT doing that thing. "
+                                   "Omit stats irrelevant to the ask.",
+                    # Enumerated rather than free-form, so the seven real
+                    # features ARE the schema. A model reaching for
+                    # `tackles_p90` has nowhere to put it.
+                    "properties": {
+                        feature: {"type": "number", "description": description}
+                        for feature, description in FEATURE_GLOSSARY.items()
+                    },
+                    "additionalProperties": False,
                 },
                 "preset": {"type": "string", "enum": list(STYLE_PRESETS),
                            "description": "Shortcut for a common ask. Optional."},
@@ -579,7 +530,7 @@ Examples of the reasoning:
 - "someone to replace Saka" -> use similar_to_player_id.
 
 Always pass a position filter when the ask implies one. The dataset only knows
-GK/DF/MF/FW, so express the finer detail (left-back, number 8, false nine)
+DF/MF/FW, so express the finer detail (left-back, number 8, false nine)
 through the weights.
 
 ## Honesty rules
@@ -592,7 +543,7 @@ through the weights.
   A player may have been rotated, benched, suspended, or signed mid-season.
   Report the minutes and stop there.
 - NEVER state a player's preferred foot, or which flank or side they play. The
-  dataset has no footedness and no left/right information — only GK/DF/MF/FW.
+  dataset has no footedness and no left/right information — only DF/MF/FW.
   Saying "naturally left-sided" or "right-footed" is recalled trivia dressed as
   analysis, and it is wrong often enough to be dangerous. Do not hedge it
   either ("likely left-footed"); simply do not make the claim.
@@ -633,24 +584,17 @@ through the weights.
              forwards (5.2 progressive carries per 90)"
       BAD:  "5.204 prog carries/90"
       BAD:  "2.75 standard deviations above average"
-  - NEVER mention standard deviations, z-scores, fit_score, raw_fit_score,
-    sample_reliability, style_weights, or shrinkage to the user. Not the
-    numbers, not the names, not an explanation of how they work. They are
-    internal ranking machinery; percentiles do the same job in language
-    everyone already understands. If a player ranks low because of a small
-    sample, say "only 900 minutes last season, so treat these numbers as
-    provisional" — describe the minutes, never the mechanism.
+  - The results are already ordered best-first and each carries a plain
+    English stat name, a percentile and a rating word. That ordering and those
+    percentiles ARE the explanation — do not invent a score of your own or
+    describe how the ranking is computed.
+  - Each result carries a `sample` note. Repeat it whenever it flags a partial
+    or small sample; describe the minutes, never a confidence calculation.
+  - NEVER print the internal column names — `goals_p90`, `npxg_p90` and the
+    rest are database identifiers from the tool schema, not English. This
+    applies when listing what the data does and does not cover too: say
+    "chance creation" and "ball progression", never a table of `xa_p90`.
   - Round numbers sensibly. Two decimals at most, usually one.
-  - NEVER print the internal column names — `goals_p90`, `npxg_p90`,
-    `prog_passes_received_p90` and the rest are database identifiers, not
-    English. This applies when listing what the data does and does not cover
-    too: say "chance creation" and "ball progression", never a table of
-    `xa_p90` and `prog_carries_p90`. If you would not say it out loud to a
-    coach, do not put it on the screen.
-- Sample size is already handled for you: fit_score is shrunk toward zero for
-  players with few minutes, and each result carries sample_reliability plus the
-  unshrunk raw_fit_score. When you recommend anyone below about 1000 minutes,
-  say so explicitly — their per90 numbers are real but volatile.
 
 ## Output
 

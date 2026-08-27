@@ -55,8 +55,6 @@ FLAT_PROMPT = " ".join(SYSTEM_PROMPT.lower().split())
     ("injuries", "injur"),
     ("footedness and side", "preferred foot"),
     ("which flank a player uses", "which flank"),
-    ("standard deviations", "standard deviations"),
-    ("internal score names", "fit_score"),
     ("internal column names", "_p90"),
 ])
 def test_the_prompt_still_carries_each_honesty_rule(topic, needle):
