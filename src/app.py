@@ -74,6 +74,19 @@ except ImportError:
     st.stop()
 
 st.set_page_config(page_title="EPL Scouting Agent", page_icon="⚽")
+
+# Streamlit shows a "Running..." status widget in the top-right corner on every
+# rerun. A query takes ~20s, so that animation sits there spinning for the whole
+# wait and reads as the app being stuck rather than working.
+st.markdown(
+    """
+    <style>
+      [data-testid="stStatusWidget"] { display: none !important; }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 require_password()
 
 if not ensure_database():
@@ -200,32 +213,7 @@ if prompt:
         st.session_state.messages.append(
             {"role": "assistant", "content": text, "interpretations": interpretations})
 
-EXAMPLES = [
-    "We need a left-back who can invert into midfield",
-    "A striker who drops deep and creates rather than poaching",
-    "Someone under 23 who beats his man and drives inside",
-    "A deep midfielder who dictates play — not from a top-six club",
-    "Find me another Bukayo Saka",
-]
-
 with st.sidebar:
-    st.markdown("### Ask for anything")
-    st.markdown(
-        "There's no fixed list of roles — describe the style you want and the "
-        "agent works out which stats express it."
-    )
-    for example in EXAMPLES:
-        st.markdown(f"- *{example}*")
-
-    st.markdown("### Then challenge it")
-    st.markdown("After a recommendation, ask: *'why not [player] instead?'*")
-
-    st.markdown("### What it can't do")
-    st.markdown(
-        "The 2024-25 dataset has no defensive stats — no tackles, "
-        "interceptions, or pressures. Ask for a ball-winner and it will tell "
-        "you so rather than guess."
-    )
     if st.button("Reset conversation"):
         st.session_state.messages = []
         st.session_state.agent_messages = []

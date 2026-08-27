@@ -76,7 +76,7 @@ def test_results_speak_plain_english_with_a_named_comparison_group():
     top = res["results"][0]
     assert top["compared_against"] == "Premier League forwards"
     stat = top["stats"][0]
-    assert set(stat) == {"stat", "per_90", "percentile", "rating"}
+    assert set(stat) == {"stat", "percentile", "rating"}
     assert "_p90" not in stat["stat"], "the user-facing label leaked a column name"
     assert 0 <= stat["percentile"] <= 100
 

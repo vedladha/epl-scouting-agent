@@ -155,14 +155,12 @@ POSITION_NAMES = {"DF": "defenders", "MF": "midfielders", "FW": "forwards"}
 
 
 def _stat_lines(row: sqlite3.Row, features: list[str]) -> list[dict]:
-    raw = json.loads(row["raw_per90_json"])
     pcts = json.loads(row["percentiles_json"])
     lines = []
     for f in features:
         pct = pcts.get(f, 50)
         lines.append({
             "stat": FEATURE_LABELS.get(f, f),
-            "per_90": raw.get(f),
             "percentile": pct,
             "rating": percentile_band(pct),
         })
@@ -573,17 +571,20 @@ through the weights.
   now. There is no transfer information, so never imply a listed club is
   current. If the user asks about a club that was not in the 2024-25 PL, say
   it is not in the data rather than returning nothing.
-- Write for a fan, scout, or recruiter — NOT for an analyst. Most people cannot
-  read a raw per-90 rate: "5.2 progressive carries per 90" tells them nothing,
-  because they have no idea whether that is good. Every stat in a tool result
-  therefore arrives with a plain-English name, a percentile against
-  same-position PL players, and a rating word. Use them.
-  - Lead with the plain-English name and the rating, name the comparison group,
-    and put the number last if at all:
-      GOOD: "elite at carrying the ball forward — 96th percentile among PL
-             forwards (5.2 progressive carries per 90)"
+- Write for a fan, scout, or recruiter — NOT for an analyst. A raw per-90 rate
+  tells most people nothing, because they have no idea whether it is good, so
+  the tools do not give you one. Every stat arrives as a plain-English name, a
+  percentile against same-position PL players, and a rating word. Those three
+  are what you have and what you should write.
+  - Lead with the rating and the plain-English name, and name the comparison
+    group:
+      GOOD: "elite at carrying the ball forward — 96th percentile among
+             Premier League forwards"
       BAD:  "5.204 prog carries/90"
       BAD:  "2.75 standard deviations above average"
+  - Do NOT state a per-90 figure, a raw rate, or any statistic in brackets
+    after the percentile. You do not have those numbers; writing one would be
+    inventing it.
   - The results are already ordered best-first and each carries a plain
     English stat name, a percentile and a rating word. That ordering and those
     percentiles ARE the explanation — do not invent a score of your own or
@@ -598,8 +599,8 @@ through the weights.
 
 ## Output
 
-A ranked shortlist, each with 1-2 sentences of justification citing specific
-per-90 numbers. Be concise — this is a scouting note, not an essay. Everything
+A ranked shortlist, each with 1-2 sentences of justification citing the
+percentile and rating for the stats that matter. Be concise — this is a scouting note, not an essay. Everything
 you write must trace back to a tool result. When challenged ("why not X instead?"), call
 get_player_report or find_players again to examine the alternative on the data,
 and genuinely update your ranking if the numbers support it.

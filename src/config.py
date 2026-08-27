@@ -12,8 +12,6 @@ HISTORICAL_SEASONS = [
 PLAYER_STATS_CSV = "data/kaggle_raw/fbref_PL_2024-25.csv"
 DATA_SEASON = "2024-2025"
 
-MVP_SEASON = DATA_SEASON
-
 CURRENT_PL_CLUBS = [
     "Arsenal",
     "Aston Villa",
@@ -142,7 +140,5 @@ STYLE_PRESETS = {
         "prog_passes_p90": 0.2,
     },
 }
-
-ROLE_ARCHETYPES = STYLE_PRESETS
 
 DB_PATH = "data/epl_scout.db"

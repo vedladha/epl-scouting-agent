@@ -26,7 +26,7 @@ SEASON_WEIGHTS = {season: i + 1 for i, season in enumerate(HISTORICAL_SEASONS)}
 # carries the wider set (shots, tackles, pressures, ...) for a richer future
 # data source, but those columns are NULL today — including them here would
 # produce all-zero features that dilute every similarity score.
-# These seven ARE the feature space; config.ROLE_ARCHETYPES must stay in sync.
+# These seven ARE the feature space; config.STYLE_PRESETS must stay in sync.
 COUNTING_STATS = [
     "goals", "assists", "npxg", "xa",
     "prog_passes", "prog_carries", "prog_passes_received",

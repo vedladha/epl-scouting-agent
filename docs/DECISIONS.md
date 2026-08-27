@@ -91,7 +91,7 @@ confusion.
 
 ### Stats this source does NOT have
 No tackles, interceptions, pressures, or pass completion %. Those columns exist
-in `schema.sql` and are written as NULL. `ROLE_ARCHETYPES` is scoped to avoid
+in `schema.sql` and are written as NULL. `STYLE_PRESETS` is scoped to avoid
 them entirely, and `build_features.py`'s `COUNTING_STATS` excludes them (an
 all-NULL stat becomes an all-zero feature that dilutes every similarity score).
 
@@ -99,7 +99,7 @@ all-NULL stat becomes an all-zero feature that dilutes every similarity score).
 - `src/config.py` — `IN_SCOPE_CLUBS`, `CLUB_NAME_MAP`,
   `PLAYER_STATS_CSV`, `DATA_SEASON`, `FEATURE_GLOSSARY` / `FEATURE_COLUMNS`
   (the style vocabulary, fed to the agent), and `STYLE_PRESETS` — six worked
-  examples, NOT a fixed menu (`ROLE_ARCHETYPES` is a backwards-compatible alias).
+  examples, NOT a fixed menu.
 - `src/schema.sql` — SQLite schema: players, player_season_stats (incl.
   `prog_passes_received` for PrgR), player_features (incl. `total_minutes`,
   `feature_json` z-scores, `raw_per90_json`, `percentiles_json`).
@@ -111,9 +111,6 @@ all-NULL stat becomes an all-zero feature that dilutes every similarity score).
   `get_player_report`) + Claude tool-use loop with challenge/re-justify support.
   See "Open-vocabulary style matching" below — this is the heart of the project.
 - `src/app.py` — Streamlit chat UI. **Not yet run live** (needs API key).
-- `src/classify_kaggle_csvs.py`, `src/inspect_kaggle.py`,
-  `src/inspect_player_stats.py` — reusable utilities for evaluating another
-  dataset later.
 
 ## Open-vocabulary style matching — the core design
 **There is no fixed list of roles.** A user asks for anything in plain English;
