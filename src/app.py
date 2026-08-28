@@ -94,7 +94,7 @@ if not ensure_database():
     st.stop()
 
 st.title("⚽ EPL Autonomous Scouting Agent")
-st.caption("Describe a tactical need in your own words. Challenge the recommendations. It re-justifies with data.")
+st.caption("Scouting that argues its case.")
 
 if "messages" not in st.session_state:
     st.session_state.messages = []  # UI-facing history (text only)
