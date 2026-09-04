@@ -109,7 +109,4 @@ export ANTHROPIC_API_KEY=sk-ant-...
 streamlit run src/app.py
 ```
 
-`data/epl_scout.db` is regenerable from the CSV at any time. If `schema.sql`
-changes, DELETE the DB before rebuilding — `CREATE TABLE IF NOT EXISTS` will
-not add a column to an existing table.
 
