@@ -10,13 +10,10 @@ An autonomous scouting agent: given a tactical need in plain English
 stats, ranks candidates by style fit, generates a data-backed comparison
 report, and can be challenged ("why not X instead?") to re-justify with data.
 
-Portfolio project, 3-day build timeline. Validation plan: test with soccer
-fans/recruiters/coaches via a Listen Labs contact.
-
-## Scope decisions (final, do not re-litigate unless asked)
+## Scope decisions
 - **League**: Premier League only.
 - **Squad scope**: the 20 clubs of the 2024-25 Premier League — i.e. every
-  club in the dataset. See `src/config.py` `IN_SCOPE_CLUBS`. This was
+  club in the dataset. See `src/config.py` `CURRENT_PL_CLUBS`. This was
   originally scoped to the current 2026-27 squads; see "Why scope is the
   season, not the present day" below for why that was wrong.
 - **Historical depth**: originally planned 5 seasons, recency-weighted.
@@ -25,18 +22,8 @@ fans/recruiters/coaches via a Listen Labs contact.
   the recency-weighting logic in place (harmless with one season — the weight
   is constant and cancels out of the weighted average), ready if more seasons
   get added later.
-- **Build order**: single-season MVP first — this is DONE and verified against
-  real data. 5-season extension remains a stretch goal only.
 - **2026-27 season note**: the working dataset is 2024-25, two seasons behind
   the squad scope. Accepted tradeoff, not an error.
-
-## Tech stack (decided, already scaffolded)
-- Python + pandas, SQLite storage
-- Per-90 stat feature vectors + cosine similarity for style matching
-  (deliberately NOT using learned embeddings — explainability > sophistication
-  for a 3-day build)
-- Claude (Anthropic API, tool use / function calling) as the agent orchestrator
-- Streamlit for the chat UI
 
 ## Data source — RESOLVED
 Original plan was to scrape FBref via `soccerdata`. **Confirmed blocked**:
@@ -65,7 +52,7 @@ Went through two Kaggle dead-ends before landing on a working dataset:
    `_assert_season_totals()` in `ingest.py` guards this.
 2. **FBref short club names.** The `Squad` column says `Brighton`,
    `Manchester Utd`, `Newcastle Utd`, `Nott'ham Forest`, `Tottenham` — none of
-   which match `IN_SCOPE_CLUBS`. `config.CLUB_NAME_MAP` normalizes them
+   which match `CURRENT_PL_CLUBS`. `config.CLUB_NAME_MAP` normalizes them
    BEFORE filtering. Without it, five clubs silently vanish from the dataset.
 
 ### Why scope is the season, not the present day
@@ -94,23 +81,6 @@ No tackles, interceptions, pressures, or pass completion %. Those columns exist
 in `schema.sql` and are written as NULL. `STYLE_PRESETS` is scoped to avoid
 them entirely, and `build_features.py`'s `COUNTING_STATS` excludes them (an
 all-NULL stat becomes an all-zero feature that dilutes every similarity score).
-
-## Files already built
-- `src/config.py` — `IN_SCOPE_CLUBS`, `CLUB_NAME_MAP`,
-  `PLAYER_STATS_CSV`, `DATA_SEASON`, `FEATURE_GLOSSARY` / `FEATURE_COLUMNS`
-  (the style vocabulary, fed to the agent), and `STYLE_PRESETS` — six worked
-  examples, NOT a fixed menu.
-- `src/schema.sql` — SQLite schema: players, player_season_stats (incl.
-  `prog_passes_received` for PrgR), player_features (incl. `total_minutes`,
-  `feature_json` z-scores, `raw_per90_json`, `percentiles_json`).
-- `src/ingest.py` — loads the CSV directly (no scraping), normalizes club
-  names, filters to `IN_SCOPE_CLUBS`, loads into SQLite.
-- `src/build_features.py` — recency-weighted per-90 stats, z-score
-  normalization. **Verified against the real data.**
-- `src/agent_tools.py` — three tools (`query_players`, `find_players`,
-  `get_player_report`) + Claude tool-use loop with challenge/re-justify support.
-  See "Open-vocabulary style matching" below — this is the heart of the project.
-- `src/app.py` — Streamlit chat UI. **Not yet run live** (needs API key).
 
 ## Open-vocabulary style matching — the core design
 **There is no fixed list of roles.** A user asks for anything in plain English;
@@ -144,15 +114,20 @@ rewards being far in the direction asked for, and is directly interpretable:
 Cosine is still used, correctly, for `similar_to_player_id` — player-to-player
 resemblance genuinely is a question about profile shape, not magnitude.
 
+Neither path uses learned embeddings: explainability > sophistication. Showing
+a coach exactly why a player ranked where they did is the point.
+
 ### Sample-size shrinkage
 `reliability = minutes / (minutes + 900)`, multiplied into `fit_score`.
 
 Without it every query surfaced cameo players — a striker with 638 minutes beat
 Haaland and Salah on "most dangerous goalscorer", because a hot streak over
-seven matches produces a wilder per-90 than a full season does. Results carry
-`raw_fit_score` and `sample_reliability` so the agent can be explicit about it.
-Shrinkage scales a player's whole z-vector uniformly, so it correctly cancels
-out of the cosine path and is applied only to `fit_score`.
+seven matches produces a wilder per-90 than a full season does. The scores
+themselves never leave `find_players`: results carry a plain-English `sample`
+note ("full season", "small sample — treat rates as provisional") instead of
+`raw_fit_score` and `sample_reliability`, which the agent used to quote and
+misexplain. Shrinkage scales a player's whole z-vector uniformly, so it
+correctly cancels out of the cosine path and is applied only to `fit_score`.
 
 ### Communicating results to non-analysts
 User feedback: "5.204 prog carries/90 | 11.48 prog passes received/90" is
@@ -168,16 +143,18 @@ have no idea whether a number is good. Three changes:
    "carrying the ball forward". `config.PERCENTILE_BANDS` / `percentile_band()`
    give one consistent vocabulary (elite / excellent / strong / average /
    below average / poor) instead of a fresh adjective per player.
-3. **Jargon is banned from output.** The system prompt forbids mentioning
-   standard deviations, z-scores, fit_score, sample_reliability, style_weights,
-   or shrinkage — not the numbers, not the names, not explanations of the
-   mechanism. Small samples are described as minutes, never as machinery.
+3. **Jargon is banned from output.** The system prompt forbids standard
+   deviations, z-scores, raw per-90 rates, column names, and any description of
+   how the ranking is computed. The scoring fields are also simply absent from
+   the tool payload now — not sending a number beats asking the model not to
+   repeat it. Small samples are described as minutes, never as machinery.
 
 Tool results now ship a `stats` list per player, ordered by how much each stat
-mattered to the query: `{stat, feature, per_90, percentile, rating}`, plus a
-`compared_against` string naming the reference group. Raw per-90s are rounded
-to 2dp — `5.204` was false precision that made the output look more scientific
-than the data supports.
+mattered to the query: `{stat, percentile, rating}`, plus a `compared_against`
+string naming the reference group. Raw per-90s are still computed and stored in
+`raw_per90_json`, but they are no longer sent to the agent: `5.204 prog
+carries/90` was both false precision and jargon, and the model quoted the
+numbers whenever it had them.
 
 ### Showing the interpretation in the UI
 `agent_tools.describe_interpretation()` turns a `find_players` call back into
@@ -187,36 +164,32 @@ project's whole thesis — was computed and discarded, leaving a black box that
 merely worded itself nicely.
 
 ### Position filtering
-`find_players(position=...)` accepts GK/DF/MF/FW only — the dataset has no
-finer detail. Finer positional meaning (left-back, number 8, false nine) is
-expressed through the weights, not the filter. Passing `position="LB"` returns
-an error saying exactly that.
+`find_players(position=...)` accepts DF/MF/FW only — the dataset has no finer
+detail, and goalkeepers are not ranked at all (`build_features.py` skips them,
+so they have no feature vector; `position="GK"` is rejected). Finer positional
+meaning (left-back, number 8, false nine) is expressed through the weights, not
+the filter. Passing `position="LB"` returns an error saying exactly that.
 
-## Pipeline```
-python src/ingest.py          -> 574 rows across 20 clubs
-python src/build_features.py  -> 400 feature vectors (450-minute floor)
+## Pipeline
+
 ```
-All 574 players are in scope; 400 clear the 450-minute sample floor.
+python src/ingest.py          -> 574 rows across 20 clubs
+python src/build_features.py  -> 367 feature vectors (no GKs, 450-minute floor)
+```
+All 574 players are in scope. 44 are goalkeepers and excluded outright; of the
+rest, 367 clear the 450-minute sample floor.
 
 Raw-data sanity check passed — top scorers match reality for 2024-25:
 Salah 29, Isak 23, Haaland 22, Mbeumo 20, Wood 20. (This also confirms the
 season-total vs per-90 column trap above was avoided.)
 
-Free-form style queries sanity-checked against the tool layer (hand-written
-weight vectors standing in for what the model emits):
-- "left-back who inverts into midfield" (DF + progression, negative npxG)
-  → Alexander-Arnold, Gvardiol, Trippier, van Hecke, Akanji
-- "most dangerous pure goalscorer" (FW) → Salah, Haaland, Isak, Wissa, Watkins
-- "young winger who beats his man" (FW, u23) → Doku, Sávio, Saka, Madueke, Garnacho
-- "creator behind the striker, 2000+ mins" (MF) → Bruno Fernandes, Damsgaard,
-  Ødegaard, Palmer, Szoboszlai
-- "someone like Bukayo Saka" (similarity) → Son, Trossard, Murphy, Rogers
-
 Guardrails verified: unknown feature names, `position="LB"`, two scoring modes
 at once, and an unknown player_id all return actionable errors rather than
 silently scoring zero.
 
-## Agent behaviourRun against the real Anthropic API with `claude-sonnet-4-6`. The NL→weights
+## Agent behaviour
+
+Run against the real Anthropic API with `claude-sonnet-4-6`. The NL→weights
 translation works; this was the last untested piece.
 
 - **"a striker who drops deep and creates rather than poaching, under 26"** →
@@ -282,46 +255,25 @@ when shrinkage is minutes-based), and inferred "an injury-disrupted season"
 from low minutes. Both now explicitly barred in `SYSTEM_PROMPT` — low minutes
 can mean rotation, suspension, or a mid-season signing.
 
-## Known limitations to state honestly on the resume/demo
+## Known limitations
 1. **No defensive data.** Style-matching covers attacking output, chance
    creation, and ball progression only — no tackles/interceptions/pressures/
    duels/pass completion. The system prompt instructs the agent to say so
-   plainly rather than substitute an attacking proxy for defending. Demo
-   scenarios should still lean into what the data supports.
-2. **Position granularity is GK/DF/MF/FW only.** "Left-back" is expressed
-   through the weights, not a filter, so a left-back query will also surface
-   ball-playing centre-backs (Gvardiol, van Hecke, Akanji rank alongside
+   plainly rather than substitute an attacking proxy for defending.
+2. **Position granularity is DF/MF/FW only** (goalkeepers are excluded from
+   ranking entirely). "Left-back" is expressed through the weights, not a
+   filter, so a left-back query will also surface ball-playing
+   centre-backs (Gvardiol, van Hecke, Akanji rank alongside
    Alexander-Arnold and Trippier). Defensible — they genuinely do the thing
    asked for — but worth naming rather than pretending it's precise.
 3. **The NL→weights translation is the model's judgement, not a validated
    mapping.** `interpreted_as` is echoed back in every result so the user can
    see what their words became, which makes it auditable but not guaranteed
-   correct. Good demo material: show the interpretation, invite disagreement.
+   correct.
 4. **Single season (2024-25).** No form trend, no age curve, no injury data.
 
-## Immediate next steps
-1. **Get `src/app.py` running** (`streamlit run src/app.py`, with
-   `ANTHROPIC_API_KEY` exported). The agent loop is verified; the Streamlit
-   wrapper around it is the only untested layer left.
-2. Decide the footedness/outside-the-data question above.
-3. Consider the model ID in `agent_tools.py`: currently `claude-sonnet-4-6`,
-   which is valid and performed well in live testing, but `claude-opus-5` is
-   the stronger default for multi-step tool-use reasoning.
-   `run_agent_turn(..., model=...)` takes an override.
-4. Demo script worth rehearsing, since all four are verified working: the
-   left-back ask → the challenge → the deep-lying creator (shows open
-   vocabulary) → the ball-winner ask (shows honest refusal). That last one is
-   the most impressive part of the demo and the least obvious.
-4. Market values / transfer data are OUT OF SCOPE — decided 2026-08-25. The
-   `player_market_value` table was removed from `schema.sql` rather than left
-   as an empty promise. Do not reintroduce it.
-5. If time allows: find a second single-season CSV in the same
-   `siddhrajthakor` format for an earlier season. Union it before
-   `build_features.py` — no schema changes needed if column names match, and
-   `ingest.py --csv <path> --season <season>` already supports loading one.
-
 ## Test suite
-`python -m pytest tests/ -q` — 79 tests, ~0.5s, fully deterministic. No network,
+`python -m pytest tests/ -q` — 81 tests, ~0.5s, fully deterministic. No network,
 no API calls, no cost, so there is no excuse not to run it on every change.
 
 - `tests/test_scoring.py` — fit score, shrinkage, cosine, percentile bands
@@ -341,15 +293,3 @@ produced no exception. The ones worth not deleting:
 
 NOT covered: whether the shortlist is any GOOD. That needs scouts — Layer 3,
 still being designed. Do not let a green suite imply the scouting is validated.
-
-## Environment notes
-- macOS, Python 3.14, venv at `venv/` in the project root (created because of a
-  Homebrew pip conflict — always `source venv/bin/activate` before running)
-- `ANTHROPIC_API_KEY` must be exported in the shell before running the agent
-- `KAGGLE_API_TOKEN` was set via `export` (newer Kaggle CLI token flow, not the
-  older `kaggle.json` file method) to download datasets
-- The `diagnose*.py` scripts used to debug the FBref Cloudflare block have been
-  deleted — that investigation is finished, don't recreate them
-- `data/epl_scout.db` is regenerable from the CSV at any time. If `schema.sql`
-  changes, DELETE the DB first — `CREATE TABLE IF NOT EXISTS` will not add a
-  column to an existing table.

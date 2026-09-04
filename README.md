@@ -1,9 +1,9 @@
 # EPL Autonomous Scouting Agent
 
 Describe the player you need in plain English. The agent works out which stats
-express that idea, ranks every current Premier League player against it, and
-justifies the shortlist with real numbers — then defends its picks when you
-push back.
+express that idea, ranks every player from the 2024-25 Premier League against
+it, and justifies the shortlist with percentiles — then defends its picks when
+you push back.
 
 ```
 "a striker who drops deep and creates rather than just poaching, under 26"
@@ -22,10 +22,11 @@ poaching," composed at query time from the user's words.
 ## How it works
 
 1. **`ingest.py`** loads a season of FBref Premier League player stats from CSV
-   into SQLite, filtered to current PL squads.
+   into SQLite, filtered to the 20 clubs of that season.
 2. **`build_features.py`** turns season totals into per-90 rates, z-scores them
-   against the league, and stores both the z-scores (for ranking) and the raw
-   per-90s (for citing real numbers).
+   against the league, and ranks each stat against same-position players. It
+   stores the z-scores (for ranking) and the percentiles (for explaining a
+   pick); goalkeepers are skipped entirely.
 3. **`agent_tools.py`** exposes three tools to Claude — `query_players`,
    `find_players`, `get_player_report` — and runs the tool-use loop.
 4. **`app.py`** is a Streamlit chat UI over that loop.
@@ -59,18 +60,19 @@ a centre-back, and nobody outside the field knows which. So every stat reaches
 the user as a plain-English name, a percentile against **same-position** PL
 players, and a word for that percentile:
 
-> **Elite at carrying the ball forward** — 100th percentile among PL forwards
-> (12.7 progressive carries per 90)
+> **Elite at carrying the ball forward** — 100th percentile among Premier
+> League forwards
 
-Standard deviations, z-scores, and the fit score itself are never shown. They
-are internal ranking machinery, and percentiles do the same job in language
+Raw per-90 rates, standard deviations, z-scores and the fit score itself never
+leave the tool layer — they are not shown, and not sent to the agent either, so
+there is nothing for it to quote. Percentiles do the same job in language
 everyone already has.
 
 Ranking uses league-wide z-scores, because a trait's value to a team is
 absolute. Explanation uses positional percentiles, because that's the reference
-class a scout actually thinks in. Gvardiol reads as "98th percentile among
-defenders for getting into shooting positions" at 0.12 npxG/90 — a number that
-would be nothing for a forward.
+class a scout actually thinks in. Gvardiol reads as "99th percentile among
+defenders for getting into shooting positions", off a raw rate that would be
+unremarkable for a forward.
 
 ### Showing the translation
 
@@ -116,8 +118,9 @@ dressed as evidence, which is the exact failure this tool exists to avoid.
 Scraping FBref directly is blocked — it sits behind Cloudflare and 403s every
 attempt — so this uses a static Kaggle export instead.
 
-**Pipeline output:** 574 players across all 20 clubs → 400 feature vectors
-(the rest fall below a 450-minute sample floor).
+**Pipeline output:** 574 players across all 20 clubs → 367 feature vectors
+(the rest are goalkeepers, who are excluded entirely, or fall below a
+450-minute sample floor).
 
 The seven available features, and the entire style vocabulary:
 
@@ -132,9 +135,10 @@ prog_passes_p90  prog_carries_p90  prog_passes_received_p90
   no age curve, no injury data. Ages are reported as 2024-25 ages and labelled
   as such.
 - **No defensive data** — see above.
-- **Position granularity is GK/DF/MF/FW only.** "Left-back" is expressed
-  through the weights, so a left-back query also surfaces ball-playing
-  centre-backs. Defensible, but not precise.
+- **Position granularity is DF/MF/FW only** (goalkeepers are not ranked at
+  all — none of the seven stats mean anything for them). "Left-back" is
+  expressed through the weights, so a left-back query also surfaces
+  ball-playing centre-backs. Defensible, but not precise.
 - **A player's club is where he played in 2024-25**, not where he is now.
   There is no transfer data, so the scope is "everyone who played in the
   2024-25 Premier League" rather than any present-day squad.
@@ -155,6 +159,10 @@ export ANTHROPIC_API_KEY=sk-ant-...
 streamlit run src/app.py
 ```
 
+`data/epl_scout.db` is regenerable from the CSV at any time. If `schema.sql`
+changes, DELETE the DB before rebuilding — `CREATE TABLE IF NOT EXISTS` will
+not add a column to an existing table.
+
 [`docs/DECISIONS.md`](docs/DECISIONS.md) covers why the project is shaped this
 way — two abandoned data sources, the scoring choices, and the traps in this
 CSV that fail silently.
@@ -171,9 +179,11 @@ player ranked where they did is worth more than sophistication.
 
 Streamlit Community Cloud hosts this for free from a GitHub repo.
 
-**Before you share the URL:** the app runs on one API key — yours — and every
-query bills it. Community Cloud apps are publicly reachable, so treat the link
-as a spending surface, not just a demo.
+**Before you share the URL:** if you configure `ANTHROPIC_API_KEY`, the app
+runs on that one key — yours — and every query bills it. Leave it unset and the
+app asks each viewer for their own key instead, which costs you nothing.
+Community Cloud apps are publicly reachable, so a configured key makes the link
+a spending surface, not just a demo.
 
 1. Set a spend limit in the [Anthropic Console](https://console.anthropic.com)
    (Billing → Limits). This is the only hard stop; everything else is a
@@ -205,7 +215,7 @@ to be — a fresh container takes a few seconds longer on its first request.
 ## Tests
 
 ```bash
-python -m pytest tests/ -q      # 79 tests, ~0.5s, no network, no API cost
+python -m pytest tests/ -q      # 81 tests, ~0.5s, no network, no API cost
 ```
 
 Deterministic only — the suite never calls the model, so it runs on every
