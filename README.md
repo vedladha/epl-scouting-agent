@@ -113,15 +113,3 @@ streamlit run src/app.py
 changes, DELETE the DB before rebuilding — `CREATE TABLE IF NOT EXISTS` will
 not add a column to an existing table.
 
-[`docs/DECISIONS.md`](docs/DECISIONS.md) covers why the project is shaped this
-way — two abandoned data sources, the scoring choices, and the traps in this
-CSV that fail silently.
-
-
-Testing with soccer fans, recruiters, and coaches via a Listen Labs contact:
-
-- Give 3-4 real tactical asks with an expected answer, and measure whether the
-  top-5 shortlist matches expert judgement
-- Have testers rate whether the justification would be useful in a real
-  scouting conversation
-- Check that the challenge loop re-justifies from data rather than restating
