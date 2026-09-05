@@ -96,15 +96,25 @@ def _score_ranking(case: EvalCase, call: dict, returned: list[str]) -> dict:
     return scores
 
 
+def replay_filters(case: EvalCase) -> dict:
+    """A case may accept several readings of a filter; replaying needs one."""
+    filters = dict(case.filters)
+    value = filters.get("position")
+    if isinstance(value, list):
+        filters["position"] = value[0]
+    return filters
+
+
 def run_case_offline(case: EvalCase) -> CaseResult:
     result = CaseResult(case=case)
     if case.is_refusal:
         result.error = "refusal cases need the live tier"
         return result
 
-    payload = (find_players(similar_to_player_id=case.similar_to, **case.filters,
+    filters = replay_filters(case)
+    payload = (find_players(similar_to_player_id=case.similar_to, **filters,
                             k=8) if case.mode == "similar"
-               else find_players(style_weights=dict(case.weights), **case.filters, k=8))
+               else find_players(style_weights=dict(case.weights), **filters, k=8))
     if "error" in payload:
         result.error = payload["error"]
         return result

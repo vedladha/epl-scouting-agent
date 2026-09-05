@@ -11,8 +11,8 @@ sys.path.insert(0, str(ROOT / "evals"))
 from cases import EvalCase  # noqa: E402
 from conftest import needs_db  # noqa: E402
 from run_eval import (AGENT_MODEL_ENV, extract_calls, final_text,  # noqa: E402
-                      report, resolve_agent_model, run_case_live,
-                      run_case_offline, summarize)
+                      replay_filters, report, resolve_agent_model,
+                      run_case_live, run_case_offline, summarize)
 
 RANK_CASE = EvalCase(
     id="goalscorer", ask="the most dangerous goalscorer", mode="rank",
@@ -166,6 +166,17 @@ def test_the_agent_model_comes_from_the_environment_when_not_named(monkeypatch):
     monkeypatch.setenv(AGENT_MODEL_ENV, "model-from-the-environment")
     assert resolve_agent_model() == "model-from-the-environment"
     assert resolve_agent_model("named-in-code") == "named-in-code"
+
+
+def test_replaying_a_case_that_accepts_two_positions_picks_one():
+    case = EvalCase(id="w", ask="a winger", mode="rank",
+                    weights={"prog_carries_p90": 1.5},
+                    filters={"position": ["FW", "MF"], "max_age": 22})
+    assert replay_filters(case) == {"position": "FW", "max_age": 22}
+
+
+def test_replaying_leaves_a_single_position_alone():
+    assert replay_filters(RANK_CASE)["position"] == "FW"
 
 
 def test_no_model_is_forced_when_nothing_is_configured(monkeypatch):
