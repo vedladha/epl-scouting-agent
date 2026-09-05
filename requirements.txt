@@ -6,6 +6,9 @@ numpy>=1.24
 anthropic>=1.0
 streamlit>=1.38
 
+# Evals
+pyyaml>=6.0
+
 # NOTE: soccerdata was removed — FBref is Cloudflare-blocked and the project
 # loads a static Kaggle CSV instead. scikit-learn and python-dotenv were
 # declared but never imported.
