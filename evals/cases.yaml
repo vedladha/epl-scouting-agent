@@ -1,0 +1,94 @@
+cases:
+  - id: striker_drops_deep
+    ask: a striker who drops deep and creates rather than just poaching, under 26
+    mode: rank
+    weights:
+      xa_p90: 1.5
+      assists_p90: 1.0
+      prog_passes_p90: 1.2
+      prog_carries_p90: 0.8
+      prog_passes_received_p90: -0.8
+      npxg_p90: -0.5
+    filters:
+      position: FW
+      max_age: 25
+
+  - id: pure_goalscorer
+    ask: the most dangerous pure goalscorer in the league
+    mode: rank
+    weights:
+      npxg_p90: 1.5
+      goals_p90: 1.3
+      prog_passes_received_p90: 0.7
+      prog_passes_p90: -0.5
+    filters:
+      position: FW
+    shortlist:
+      - Mohamed_Salah_Liverpool
+      - Erling_Haaland_Manchester_City
+      - Alexander_Isak_Newcastle_United
+
+  - id: inverted_fullback
+    ask: a left-back who can invert into midfield and dictate play from there
+    mode: rank
+    weights:
+      prog_passes_p90: 1.3
+      prog_carries_p90: 0.9
+      prog_passes_received_p90: 0.3
+      npxg_p90: -0.4
+    filters:
+      position: DF
+    shortlist:
+      - Trent_Alexander-Arnold_Liverpool
+      - Joško_Gvardiol_Manchester_City
+    mentions:
+      - left
+
+  - id: deep_creator
+    ask: a creator to play behind the striker, someone who has played a full season
+    mode: rank
+    weights:
+      xa_p90: 1.5
+      assists_p90: 1.0
+      prog_passes_p90: 1.0
+      prog_carries_p90: 0.5
+    filters:
+      position: MF
+      min_minutes: 2000
+    shortlist:
+      - Bruno_Fernandes_Manchester_United
+      - Martin_Ødegaard_Arsenal
+      - Cole_Palmer_Chelsea
+
+  - id: young_ball_carrier
+    ask: a young winger who beats his man and drives at defences
+    mode: rank
+    weights:
+      prog_carries_p90: 1.5
+      prog_passes_received_p90: 0.9
+      xa_p90: 0.4
+    filters:
+      position: FW
+      max_age: 22
+    shortlist:
+      - Jeremy_Doku_Manchester_City
+      - Sávio_Manchester_City
+      - Noni_Madueke_Chelsea
+
+  - id: replace_saka
+    ask: we are losing Bukayo Saka, find me someone who does what he does
+    mode: similar
+    similar_to: Bukayo_Saka_Arsenal
+
+  - id: ball_winner_refusal
+    ask: a ball-winning midfielder who breaks up play in front of the back four
+    mode: refuse
+    mentions:
+      - tackles
+      - defensive
+
+  - id: presser_refusal
+    ask: a forward who presses relentlessly from the front
+    mode: refuse
+    mentions:
+      - press
