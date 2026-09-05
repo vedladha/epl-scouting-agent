@@ -81,7 +81,11 @@ st.set_page_config(page_title="EPL Scouting Agent", page_icon="⚽")
 st.markdown(
     """
     <style>
-      [data-testid="stStatusWidget"] { display: none !important; }
+        [data-testid="stStatusWidget"] { display: none !important; }
+        [data-testid="stToolbarActions"] { display: none !important; }
+        [data-testid="stMainMenu"] { display: none !important; }
+        [data-testid="stDecoration"] { display: none !important; }
+
     </style>
     """,
     unsafe_allow_html=True,
@@ -215,6 +219,7 @@ if prompt:
 
 with st.sidebar:
     if st.button("Reset conversation"):
+        st.link_button("GitHub", "https://github.com/vedladha/epl-scouting-agent")
         st.session_state.messages = []
         st.session_state.agent_messages = []
         st.rerun()
