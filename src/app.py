@@ -218,8 +218,8 @@ if prompt:
             {"role": "assistant", "content": text, "interpretations": interpretations})
 
 with st.sidebar:
+    st.link_button("GitHub", "https://github.com/vedladha/epl-scouting-agent")
     if st.button("Reset conversation"):
-        st.link_button("GitHub", "https://github.com/vedladha/epl-scouting-agent")
         st.session_state.messages = []
         st.session_state.agent_messages = []
         st.rerun()
