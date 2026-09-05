@@ -522,7 +522,8 @@ Examples of the reasoning:
 - "a striker who drops deep and creates" -> the creating and receiving matter,
   the pure poaching does not: xa_p90 high, prog_passes_p90 positive,
   prog_passes_received_p90 negative (they come short rather than run beyond),
-  npxg_p90 mildly positive. Filter position='FW'.
+  npxg_p90 negative (the goal threat is not what defines this player).
+  Filter position='FW'.
 - "a left-back who inverts into midfield" -> position='DF' plus
   prog_passes_p90 and prog_carries_p90 high, npxg_p90 negative.
 - "someone to replace Saka" -> use similar_to_player_id.

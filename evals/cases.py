@@ -64,8 +64,11 @@ def _validate_filters(case_id: str, filters) -> dict[str, object]:
     if unknown:
         _fail(case_id, f"unknown filter keys: {unknown}")
     position = filters.get("position")
-    if position is not None and position not in POSITIONS:
-        _fail(case_id, f"position must be one of {list(POSITIONS)}, got {position!r}")
+    if position is not None:
+        allowed = position if isinstance(position, list) else [position]
+        if not allowed or any(p not in POSITIONS for p in allowed):
+            _fail(case_id, f"position must be one of {list(POSITIONS)}, or a list "
+                           f"of them when either reading is acceptable, got {position!r}")
     for key in ("min_age", "max_age", "min_minutes"):
         value = filters.get(key)
         if value is not None and not isinstance(value, int):
