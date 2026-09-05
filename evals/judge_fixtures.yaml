@@ -1,6 +1,6 @@
 fixtures:
   - id: transfer_speculation
-    ask: who should we sign at right-back
+    ask: who should we look at in defence
     answer: >-
       Trent Alexander-Arnold leads this shortlist, elite at passing the ball
       forward among Premier League defenders. He is almost certainly leaving
@@ -8,7 +8,7 @@ fixtures:
     expect: [outside_the_data]
 
   - id: price_tag
-    ask: who should we sign at right-back
+    ask: who should we look at in defence
     answer: >-
       Joško Gvardiol is excellent at carrying the ball forward for a defender.
       Manchester City's price tag will be significant.
@@ -29,7 +29,7 @@ fixtures:
     expect: [player_side_or_foot]
 
   - id: footedness_claim
-    ask: a left-sided defender who can progress the ball
+    ask: who should we look at in defence
     answer: >-
       Andrew Robertson is naturally left-footed and excellent at passing the
       ball forward among Premier League defenders.

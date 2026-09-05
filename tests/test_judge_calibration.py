@@ -72,7 +72,7 @@ def test_fixtures_without_a_clean_answer_are_rejected(tmp_path):
 def test_a_perfect_judge_scores_perfectly():
     client = ScriptedClient({"naturally left-footed": ["player_side_or_foot"]})
     c = calibrate([PLANTED, CLEAN], client)
-    assert c.recall == 1.0 and c.rule_accuracy == 1.0 and c.false_alarm_rate == 0.0
+    assert c.recall == 1.0 and c.false_alarm_rate == 0.0 and c.with_extras == []
 
 
 def test_a_judge_that_finds_nothing_scores_zero_recall_not_a_pass():
@@ -87,11 +87,19 @@ def test_a_judge_that_flags_everything_is_caught_by_the_false_alarm_rate():
     assert c.false_alarm_rate == 1.0
 
 
-def test_catching_a_violation_under_the_wrong_rule_counts_as_caught_but_not_exact():
+def test_an_extra_finding_alongside_the_planted_one_still_counts_as_caught():
     client = ScriptedClient({"naturally left-footed": ["player_side_or_foot", "raw_stat"]})
     c = calibrate([PLANTED, CLEAN], client)
-    assert c.recall == 1.0 and c.rule_accuracy == 0.0
-    assert [r.fixture.id for r in c.misfiled] == ["planted"]
+    assert c.recall == 1.0
+    assert [r.fixture.id for r in c.with_extras] == ["planted"]
+    assert c.results[0].extras == ("raw_stat",)
+
+
+def test_finding_only_a_different_rule_is_a_miss_not_a_catch():
+    client = ScriptedClient({"naturally left-footed": ["raw_stat"]})
+    c = calibrate([PLANTED, CLEAN], client)
+    assert c.recall == 0.0
+    assert [r.fixture.id for r in c.missed] == ["planted"]
 
 
 def test_a_judge_error_is_recorded_rather_than_counted_as_clean():
@@ -106,3 +114,9 @@ def test_a_judge_error_is_recorded_rather_than_counted_as_clean():
 def test_the_report_names_what_was_missed():
     text = report(calibrate([PLANTED, CLEAN], ScriptedClient({})), "some-model")
     assert "MISSED" in text and "planted" in text and "some-model" in text
+
+
+def test_the_report_marks_extras_without_calling_them_failures():
+    client = ScriptedClient({"naturally left-footed": ["player_side_or_foot", "raw_stat"]})
+    text = report(calibrate([PLANTED, CLEAN], client), "some-model")
+    assert "+extra" in text and "MISSED" not in text

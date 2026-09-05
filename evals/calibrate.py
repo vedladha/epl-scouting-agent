@@ -39,11 +39,11 @@ class FixtureResult:
 
     @property
     def caught(self) -> bool:
-        return bool(set(self.fixture.expect) & set(self.found))
+        return set(self.fixture.expect) <= set(self.found)
 
     @property
-    def exact(self) -> bool:
-        return set(self.fixture.expect) == set(self.found)
+    def extras(self) -> tuple[str, ...]:
+        return tuple(sorted(set(self.found) - set(self.fixture.expect)))
 
     @property
     def false_alarm(self) -> bool:
@@ -68,9 +68,8 @@ class Calibration:
         return sum(r.caught for r in rows) / len(rows) if rows else 1.0
 
     @property
-    def rule_accuracy(self) -> float:
-        rows = self.violations
-        return sum(r.exact for r in rows) / len(rows) if rows else 1.0
+    def with_extras(self) -> list[FixtureResult]:
+        return [r for r in self.violations if r.caught and r.extras]
 
     @property
     def false_alarm_rate(self) -> float:
@@ -80,10 +79,6 @@ class Calibration:
     @property
     def missed(self) -> list[FixtureResult]:
         return [r for r in self.violations if not r.caught]
-
-    @property
-    def misfiled(self) -> list[FixtureResult]:
-        return [r for r in self.violations if r.caught and not r.exact]
 
 
 def load_fixtures(path: Path = FIXTURES_FILE) -> list[Fixture]:
@@ -123,22 +118,28 @@ def report(calibration: Calibration, model: str) -> str:
         elif result.fixture.is_clean:
             mark = "ok" if not result.found else "FALSE ALARM"
             detail = ", ".join(result.found) or "no findings, as expected"
-        elif result.exact:
-            mark, detail = "ok", ", ".join(result.found)
+        elif result.caught and result.extras:
+            mark = "ok +extra"
+            detail = f"{', '.join(result.fixture.expect)}, plus {', '.join(result.extras)}"
         elif result.caught:
-            mark = "MISFILED"
-            detail = f"expected {', '.join(result.fixture.expect)}, got {', '.join(result.found)}"
+            mark, detail = "ok", ", ".join(result.found)
         else:
             mark = "MISSED"
-            detail = f"expected {', '.join(result.fixture.expect)}, got nothing"
+            detail = (f"expected {', '.join(result.fixture.expect)}, got "
+                      f"{', '.join(result.found) or 'nothing'}")
         lines.append(f"  {mark:<12} {result.fixture.id:<28} {detail}")
 
     lines += [
         "",
         f"  caught          {calibration.recall:.0%} of planted violations",
-        f"  right rule      {calibration.rule_accuracy:.0%} of planted violations",
         f"  false alarms    {calibration.false_alarm_rate:.0%} of clean answers",
+        f"  extra findings  {len(calibration.with_extras)} of "
+        f"{len(calibration.violations)} planted answers",
     ]
+    if calibration.with_extras:
+        lines.append("")
+        lines.append("  An extra finding is not counted as wrong. Over-flagging "
+                     "is measured on the clean answers above.")
     if calibration.missed:
         lines.append("")
         lines.append("  A miss here means the judge is blind to that failure, "
