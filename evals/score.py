@@ -107,11 +107,12 @@ def score_filters(expected: dict, actual: dict) -> FilterScore:
     matched, mismatched = [], []
     for key, value in (expected or {}).items():
         got = actual.get(key)
-        if got == value:
+        acceptable = value if isinstance(value, (list, tuple)) else [value]
+        if got in acceptable:
             matched.append(key)
         else:
-            mismatched.append((key, value, got))
-    return FilterScore(tuple(sorted(matched)), tuple(sorted(mismatched)))
+            mismatched.append((key, tuple(acceptable) if len(acceptable) > 1 else value, got))
+    return FilterScore(tuple(sorted(matched)), tuple(sorted(mismatched, key=str)))
 
 
 def score_shortlist(expected: list[str], returned: list[str],
