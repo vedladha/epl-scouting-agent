@@ -50,7 +50,8 @@ def test_shortlisted_players_satisfy_their_own_case_filters(db, cases):
                    FROM players p JOIN player_features f USING (player_id)
                    WHERE p.player_id = ?""", (player_id,)).fetchone()
             if position:
-                assert position in row["position"], \
+                acceptable = position if isinstance(position, list) else [position]
+                assert any(p in row["position"] for p in acceptable), \
                     f"{case.id}: {player_id} is {row['position']}, not {position}"
             if max_age:
                 assert row["age"] <= max_age, \

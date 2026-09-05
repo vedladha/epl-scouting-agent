@@ -58,6 +58,16 @@ def test_a_missing_filter_is_a_mismatch_against_none():
     assert s.mismatched == (("position", "DF", None),)
 
 
+def test_either_of_two_acceptable_readings_matches():
+    for got in ("FW", "MF"):
+        assert score_filters({"position": ["FW", "MF"]}, {"position": got}).is_exact
+
+
+def test_a_reading_outside_the_acceptable_set_still_mismatches():
+    s = score_filters({"position": ["FW", "MF"]}, {"position": "DF"})
+    assert s.mismatched == (("position", ("FW", "MF"), "DF"),)
+
+
 def test_shortlist_recall_counts_expected_players_that_appeared():
     s = score_shortlist(["a", "b", "c"], ["c", "z", "a"])
     assert s.hits == ("a", "c") and s.misses == ("b",)
