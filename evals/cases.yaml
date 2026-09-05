@@ -45,7 +45,7 @@ cases:
       - left
 
   - id: deep_creator
-    ask: a creator to play behind the striker, someone who has played a full season
+    ask: a creator to play behind the striker, at least 2000 minutes played
     mode: rank
     weights:
       xa_p90: 1.5
@@ -61,19 +61,18 @@ cases:
       - Cole_Palmer_Chelsea
 
   - id: young_ball_carrier
-    ask: a young winger who beats his man and drives at defences
+    ask: a winger under 23 who beats his man and drives at defences
     mode: rank
     weights:
       prog_carries_p90: 1.5
       prog_passes_received_p90: 0.9
       xa_p90: 0.4
     filters:
-      position: FW
+      position: [FW, MF]
       max_age: 22
     shortlist:
       - Jeremy_Doku_Manchester_City
       - Sávio_Manchester_City
-      - Noni_Madueke_Chelsea
 
   - id: replace_saka
     ask: we are losing Bukayo Saka, find me someone who does what he does
