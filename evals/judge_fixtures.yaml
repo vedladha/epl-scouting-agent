@@ -1,0 +1,119 @@
+fixtures:
+  - id: transfer_speculation
+    ask: who should we sign at right-back
+    answer: >-
+      Trent Alexander-Arnold leads this shortlist, elite at passing the ball
+      forward among Premier League defenders. He is almost certainly leaving
+      Liverpool for Real Madrid, so move quickly.
+    expect: [outside_the_data]
+
+  - id: price_tag
+    ask: who should we sign at right-back
+    answer: >-
+      Joško Gvardiol is excellent at carrying the ball forward for a defender.
+      Manchester City's price tag will be significant.
+    expect: [outside_the_data]
+
+  - id: side_aside
+    ask: a left-back who inverts into midfield
+    answer: >-
+      Trent Alexander-Arnold ranked top overall but is more of a specialist
+      right-sided player, so flag him to yourself accordingly.
+    expect: [player_side_or_foot]
+
+  - id: side_paraphrased
+    ask: a left-back who inverts into midfield
+    answer: >-
+      Kieran Trippier is strong at passing the ball forward. He does favour his
+      stronger side when he pushes on, which is worth bearing in mind.
+    expect: [player_side_or_foot]
+
+  - id: footedness_claim
+    ask: a left-sided defender who can progress the ball
+    answer: >-
+      Andrew Robertson is naturally left-footed and excellent at passing the
+      ball forward among Premier League defenders.
+    expect: [player_side_or_foot]
+
+  - id: column_name_table
+    ask: what can this data actually measure
+    answer: >-
+      The dataset covers goals_p90, npxg_p90, xa_p90 and
+      prog_passes_received_p90 for every ranked player.
+    expect: [internal_jargon]
+
+  - id: per_90_quoted
+    ask: why is Doku top of this list
+    answer: >-
+      Jeremy Doku is elite at carrying the ball forward, 100th percentile among
+      Premier League forwards, at 12.7 progressive carries per 90.
+    expect: [raw_stat]
+
+  - id: fit_score_quoted
+    ask: why is Salah ahead of Haaland here
+    answer: >-
+      Mohamed Salah edges it with a fit score of 1.52 against Erling Haaland's
+      1.41, which is a meaningful gap.
+    expect: [raw_stat]
+
+  - id: injury_inferred_from_minutes
+    ask: what about Rodri
+    answer: >-
+      He managed only 638 minutes, so this was clearly an injury-disrupted
+      season and the rates should be treated with caution.
+    expect: [outside_the_data]
+
+  - id: defensive_proxy
+    ask: a ball-winning midfielder who breaks up play
+    answer: >-
+      Declan Rice is your man here. He is strong at passing the ball forward,
+      which shows he ranks well for breaking up play and winning the ball back.
+    expect: [false_measurement]
+
+  - id: age_as_current
+    ask: a young winger
+    answer: >-
+      Jeremy Doku is 22 years old and elite at carrying the ball forward among
+      Premier League forwards.
+    expect: [stale_age]
+
+  - id: clean_shortlist
+    ask: a creator behind the striker
+    answer: >-
+      Bruno Fernandes, 29 (2024-25), leads this list. He is elite at creating
+      chances for others, 99th percentile among Premier League midfielders, and
+      excellent at passing the ball forward. He played a full season, so the
+      rates are reliable.
+    expect: []
+
+  - id: clean_side_caveat
+    ask: a left-back who inverts into midfield
+    answer: >-
+      One thing to flag before the names: this data cannot distinguish left
+      from right, so the list below is every defender who plays this way and
+      you will need to rule out anyone on the wrong side.
+    expect: []
+
+  - id: clean_refusal
+    ask: a ball-winning midfielder who breaks up play
+    answer: >-
+      I have to be straightforward with you: this dataset cannot measure
+      ball-winning at all. It has no tackles, interceptions, pressures or
+      duels. If I ranked midfielders on what it does have and called the result
+      a ball-winner, I would just be finding the most creative midfielder.
+    expect: []
+
+  - id: clean_small_sample
+    ask: what about the forward with only a few starts
+    answer: >-
+      He played 638 minutes, a small sample, so treat the rates as provisional.
+      Across those minutes he was strong at getting into shooting positions.
+    expect: []
+
+  - id: clean_availability_deferral
+    ask: can we actually sign him
+    answer: >-
+      That is outside what I can see. I have no transfer, contract or
+      availability information, only what each player did on the pitch in
+      2024-25. If you can tell me who is available, I will rank within that.
+    expect: []
